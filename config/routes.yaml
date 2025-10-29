@@ -1,0 +1,56 @@
+api_crises:
+    path: /api/crises
+    controller: App\Controller\CrisesController::index
+    methods: [ GET ]
+api_docs_auth:
+    path: /api/docs/auth
+    controller: App\Controller\ApiDocsAuthController::issueCookie
+    methods: [ POST ]
+api_keys:
+    resource: App\Controller\ApiKeyController
+    type: attribute
+api_login:
+    path: /api/login
+    controller: App\Controller\HomeController::apiLogin
+    methods: [POST]
+api_platform:
+    resource: .
+    type: api_platform
+    prefix: /api
+api_signup:
+    path: /api/signup
+    controller: App\Controller\HomeController::apiSignup
+    methods: [POST]
+app_csrf_token:
+    path: /csrf-token
+    controller: App\Controller\HomeController::getCsrfToken
+    methods: [GET]
+app_home:
+    path: /
+    controller: App\Controller\HomeController::index
+    methods: [GET]
+app_login:
+    path: /login
+    controller: App\Controller\HomeController::login
+    methods: [GET, POST]
+app_logout:
+    path: /logout
+    controller: App\Controller\HomeController::logout
+    methods: [GET]
+app_signup:
+    path: /signup
+    controller: App\Controller\HomeController::signup
+    methods: [GET, POST]
+dashboard_generate_api_key:
+    path: /dashboard/generate-api-key
+    controller: App\Controller\DashboardController::generateApiKey
+    methods: [ POST ]
+dashboard_home:
+    path: /dashboard
+    controller: App\Controller\DashboardController::dashboard
+    methods: [GET]
+email_verify:
+    path: /email-verify
+    controller: App\Controller\EmailController::verifyEmail
+    methods: [GET]
+

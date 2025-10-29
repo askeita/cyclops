@@ -1,0 +1,16 @@
+framework:
+    secret: '%env(APP_SECRET)%'
+    router:
+        utf8: true
+    session:
+        enabled: true
+
+when@dev:
+    framework:
+        ide: null
+
+when@test:
+    framework:
+        test: true
+        session:
+            storage_factory_id: session.storage.factory.mock_file

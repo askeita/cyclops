@@ -1,0 +1,99 @@
+/*************************************
+ * Common styles for the application *
+ *************************************/
+:root {
+    /* Spacing scale */
+    --space-0: 0;
+    --space-1: 0.5rem;   /* ~8px */
+    --space-2: 1rem;     /* ~16px */
+    --space-3: 1.5rem;   /* ~24px */
+    --space-4: 2rem;     /* ~32px */
+    --space-5: 2.5rem;   /* ~40px */
+
+    /* Border radius */
+    --radius-1: 0.25rem; /* ~4px */
+    --radius-2: 0.5rem;  /* ~8px */
+    --radius-3: 0.625rem; /* ~10px */
+
+    /* Container widths */
+    --container-sm: 22rem;  /* ~352px */
+    --container-md: 25rem;  /* ~400px */
+    --container-lg: 60rem;  /* ~960px */
+    --container-xl: 75rem;  /* ~1200px */
+
+    /* Breakpoints */
+    --bp-sm: 36em; /* ~576px */
+    --bp-md: 48em; /* ~768px */
+    --bp-lg: 64em; /* ~1024px */
+    --bp-xl: 80em; /* ~1280px */
+}
+
+/* Fluid root font-size for responsive scaling of rem */
+html { font-size: clamp(0.9375rem, 1.1vw + 0.25rem, 1.125rem); }
+
+body {
+    font-family: Tahoma, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: calc(100vh - var(--space-5));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.5;
+}
+
+.login-container, .signup-container {
+    background: #fff;
+    padding: var(--space-5);
+    border-radius: var(--radius-3);
+    box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: var(--container-md);
+}
+
+/* Alert styles */
+.alert {
+    padding: 0.75rem;
+    margin-bottom: 1.25rem;
+    border-radius: var(--radius-2);
+    font-size: 0.875rem;
+}
+.alert-success {
+    background-color: #D4EDDA;
+    color: #155724;
+    border: 1px solid #C3E6CB;
+    padding: 0.75rem;
+    margin-bottom: 1.25rem;
+    border-radius: var(--radius-2);
+    font-size: 0.875rem;
+}
+.alert-error {
+    background-color: #F8D7DA;
+    color: #721C24;
+    border: 1px solid #F5C6CB;
+}
+
+/* Responsive containers */
+@media (max-width: var(--bp-md)) { /* <= 768px */
+    .login-container, .signup-container {
+        max-width: var(--container-md);
+        padding: var(--space-4);
+    }
+}
+
+@media (max-width: var(--bp-sm)) { /* <= 576px */
+    body { min-height: 100vh; }
+    .login-container, .signup-container {
+        max-width: var(--container-sm);
+        padding: var(--space-3);
+    }
+}
+
+/* Larger containers when enough space */
+@media (min-width: var(--bp-lg)) {
+    .login-container, .signup-container { max-width: var(--container-lg); }
+}
+@media (min-width: var(--bp-xl)) {
+    .login-container, .signup-container { max-width: var(--container-xl); }
+}

@@ -1,0 +1,14 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Dashboard - Cyclops API{% endblock %}
+
+{% block body %}
+    <script>
+        window.dashboardData = {
+            userEmail: '{{ userEmail }}',
+            userApiKey: '{{ userApiKey }}',
+            lastConnection: '{{ lastConnection }}'
+        }
+    </script>
+    <div {{ vue_component('Dashboard') }}></div>
+{% endblock %}

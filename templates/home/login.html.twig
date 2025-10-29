@@ -1,0 +1,9 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}
+    Login to your Cyclops account
+{% endblock %}
+
+{% block body %}
+    <div {{ vue_component('Login', {'emailVerified': app.request.query.get('emailVerified')}) }}></div>
+{% endblock %}

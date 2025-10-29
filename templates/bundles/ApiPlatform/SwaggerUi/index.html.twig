@@ -1,0 +1,45 @@
+{% set apiKey = '' %}
+{% if app.request.cookies.get('api_docs') %}
+    {% set parts = app.request.cookies.get('api_docs')|split('.') %}
+    {% if parts|length == 2 %}
+        {% set apiKey = parts[0] %}
+    {% endif %}
+{% endif %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>API docs</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    {% extends '@!ApiPlatform/SwaggerUi/index.html.twig' %}
+
+    {% block javascripts %}
+        {{ parent() }}
+        <script>
+            (function () {
+                function readCookie(name) {
+                    const m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)'));
+                    return m ? decodeURIComponent(m[1]) : null;
+                }
+                const c = readCookie('api_docs');
+                if (c && c.indexOf('.') !== -1) {
+                    const key = c.split('.', 2)[0]; // on ne garde que la clé
+                    const preauth = () => {
+                        if (window.ui && window.ui.preauthorizeApiKey) {
+                            window.ui.preauthorizeApiKey('ApiKeyAuth', key);
+                        } else {
+                            setTimeout(preauth, 100);
+                        }
+                    };
+                    preauth();
+                }
+            })();
+        </script>
+    {% endblock %}
+</body>
+</html>

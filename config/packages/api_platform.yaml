@@ -1,0 +1,36 @@
+api_platform:
+    title: 'Cyclops API'
+    description: 'API for economic and financial crises data'
+    version: '1.0.0'
+
+    formats:
+        json: ['application/json']
+        jsonld: ['application/ld+json']
+
+    docs_formats:
+        json: ['application/json']
+        jsonld: ['application/ld+json']
+        html: ['text/html']
+
+    # OpenAPI Configuration with Contact and License Info
+    openapi:
+        contact:
+            name: Crisis API Support
+            email: support@crisis-api.com
+        license:
+            name: GNU GENERAL PUBLIC LICENSE
+            url: 'https://github.com/askeita/cyclops/blob/main/LICENSE'
+        termsOfService: 'https://crisis-api.com/terms'
+
+    # Swagger UI Configuration
+    swagger:
+        versions: [3]
+        api_keys:
+            ApiKeyAuth:
+                name: X-API-KEY
+                type: header
+
+    # Enable Swagger UI
+    enable_swagger_ui: true
+    enable_docs: true
+    show_webby: true
