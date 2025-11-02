@@ -2,7 +2,7 @@
 FROM composer:2 AS composer_deps
 WORKDIR /app
 COPY composer.json composer.lock* symfony.lock* ./
-RUN composer install --no-dev -prefer-dist --no-scripts --no-progress --no-interaction
+RUN composer install --no-dev --prefer-dist --no-scripts --no-progress --no-interaction
 COPY . .
 
 # Build assets (node, yarn)
@@ -49,10 +49,11 @@ RUN set -eux; \
   sed -ri 's/^;?clear_env\s*=.*/clear_env = no/' /usr/local/etc/php-fpm.d/www.conf
 
 # Nginx configuration
-RUN set -eux; mkdir -p /run/nginx; \
-      cat > /etc/nginx/conf.d/default.conf <<EOF
+RUN set -eux; \
+  mkdir -p /run/nginx /etc/nginx/http.d; \
+  cat > /etc/nginx/http.d/default.conf <<'EOF'
 server {
-  listen 80;
+  listen 8080;
   server_name_;
   root /var/www/html/public;
   index index.php index.html;
@@ -82,7 +83,7 @@ EOF
 
 # PHP-FPM and Nginx startup script
 RUN set -eux; \
-  cat > /start.sh <<EOF && chmod +x /start.sh
+  cat > /start.sh <<'EOF' && chmod +x /start.sh
 #!/usr/bin/env sh
 set -e
 php-fpm -D
