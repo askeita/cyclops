@@ -17,3 +17,6 @@ substitutions:
   _REGION: europe-west9
   _REPO: cyclops
   _IMAGE: cyclops
+
+options:
+  logging: CLOUD_LOGGING_ONLY
