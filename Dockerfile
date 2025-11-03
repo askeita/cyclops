@@ -51,7 +51,8 @@ RUN set -eux; \
 # Nginx configuration
 RUN set -eux; \
   mkdir -p /run/nginx /etc/nginx/http.d; \
-  cat > /etc/nginx/http.d/default.conf <<EOF
+  cat > /etc/nginx/http.d/default.conf \
+<<EOF
 server {
   listen 8080;
   server_name _;
@@ -84,7 +85,8 @@ EOF
 
 # PHP-FPM and Nginx startup script
 RUN set -eux; \
-  cat > /start.sh <<EOF
+  cat > /start.sh \
+ <<EOF
 #!/usr/bin/env sh
 set -e
 php-fpm -D
