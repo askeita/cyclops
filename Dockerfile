@@ -54,7 +54,7 @@ RUN set -eux; \
   cat > /etc/nginx/http.d/default.conf <<'EOF'
 server {
   listen 8080;
-  server_name_;
+  server_name _;
   root /var/www/html/public;
   index index.php index.html;
 
@@ -67,6 +67,7 @@ server {
 
   location ~ \.php$ {
     try_files $uri = 404;
+    include /etc/nginx/fastcgi_params;
     fastcgi_pass 127.0.0.1:9000;
     fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
     fastcgi_param DOCUMENT_ROOT $realpath_root;
@@ -83,12 +84,15 @@ EOF
 
 # PHP-FPM and Nginx startup script
 RUN set -eux; \
-  cat > /start.sh <<'EOF' && chmod +x /start.sh
+  cat > /start.sh <<'EOF'
 #!/usr/bin/env sh
 set -e
 php-fpm -D
 exec nginx -g 'daemon off;'
 EOF
+
+# Make startup script executable
+RUN chmod +x /start.sh
 
 ENV APP_ENV=prod APP_DEBUG=0 PORT=8080
 EXPOSE 8080
