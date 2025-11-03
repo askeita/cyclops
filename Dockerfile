@@ -51,7 +51,7 @@ RUN set -eux; \
 # Nginx configuration
 RUN set -eux; \
   mkdir -p /run/nginx /etc/nginx/http.d; \
-  cat > /etc/nginx/http.d/default.conf <<'EOF'
+  cat > /etc/nginx/http.d/default.conf <<EOF
 server {
   listen 8080;
   server_name _;
@@ -62,29 +62,29 @@ server {
   error_log /var/log/nginx/error.log;
 
   location / {
-    try_files $uri /index.php$is_args$args;
+    try_files \$uri /index.php\$is_args\$args;
   }
 
-  location ~ \.php$ {
-    try_files $uri = 404;
+  location ~ \.php\$ {
+    try_files \$uri = 404;
     include /etc/nginx/fastcgi_params;
     fastcgi_pass 127.0.0.1:9000;
-    fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-    fastcgi_param DOCUMENT_ROOT $realpath_root;
+    fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
+    fastcgi_param DOCUMENT_ROOT \$realpath_root;
     fastcgi_read_timeout 60s;
   }
 
-  location ~* \.(?:css|js|ico|gif|jpe?g|png|svg|woff2?|ttf)$ {
+  location ~* \.(?:css|js|ico|gif|jpe?g|png|svg|woff2?|ttf)\$ {
     expires 1y;
     access_log off;
-    try_files $uri = 404;
+    try_files \$uri = 404;
   }
 }
 EOF
 
 # PHP-FPM and Nginx startup script
 RUN set -eux; \
-  cat > /start.sh <<'EOF'
+  cat > /start.sh <<EOF
 #!/usr/bin/env sh
 set -e
 php-fpm -D
