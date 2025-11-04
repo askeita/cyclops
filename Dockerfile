@@ -49,54 +49,14 @@ RUN set -eux; \
   sed -ri 's/^;?clear_env\s*=.*/clear_env = no/' /usr/local/etc/php-fpm.d/www.conf
 
 # Nginx configuration
-RUN set -eux; \
-  mkdir -p /run/nginx /etc/nginx/http.d; \
-  cat > /etc/nginx/http.d/default.conf \
-<<EOF
-server {
-  listen 8080;
-  server_name _;
-  root /var/www/html/public;
-  index index.php index.html;
-
-  access_log /var/log/nginx/access.log;
-  error_log /var/log/nginx/error.log;
-
-  location / {
-    try_files \$uri /index.php\$is_args\$args;
-  }
-
-  location ~ \.php\$ {
-    try_files \$uri = 404;
-    include /etc/nginx/fastcgi_params;
-    fastcgi_pass 127.0.0.1:9000;
-    fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
-    fastcgi_param DOCUMENT_ROOT \$realpath_root;
-    fastcgi_read_timeout 60s;
-  }
-
-  location ~* \.(?:css|js|ico|gif|jpe?g|png|svg|woff2?|ttf)\$ {
-    expires 1y;
-    access_log off;
-    try_files \$uri = 404;
-  }
-}
-EOF
+RUN mkdir -p /run/nginx /etc/nginx/http.d
+COPY nginx.conf /etc/nginx/http.d/default.conf
 
 # PHP-FPM and Nginx startup script
-RUN set -eux; \
-  cat > /start.sh \
- <<EOF
-#!/usr/bin/env sh
-set -e
-php-fpm -D
-exec nginx -g 'daemon off;'
-EOF
-
-# Make startup script executable
+COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
 ENV APP_ENV=prod APP_DEBUG=0 PORT=8080
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=3s --start-period=20s CMD wget -q0 https://cyclops-api.online:8080 || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s CMD wget --no-verbose --tries=1 --spider http://localhost:8080 || exit 1
 CMD ["/start.sh"]
