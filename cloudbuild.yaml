@@ -15,8 +15,8 @@ images:
 
 substitutions:
   _REGION: europe-west9
-  _REPO: cyclops
-  _IMAGE: cyclops
+  _REPO: cloud-run-source-deploy
+  _IMAGE: cyclops/cyclops
 
 options:
   logging: CLOUD_LOGGING_ONLY
