@@ -29,8 +29,10 @@ RUN docker-php-ext-install pdo pdo_mysql opcache && docker-php-ext-enable opcach
 COPY --from=composer_deps /app /var/www/html
 COPY --from=assets /app/public/build /var/www/html/public/build
 
-# Symfony permissions
-RUN mkdir -p var/cache var/log && chown -R www-data:www-data var
+# Permissions and cache/log directories
+RUN mkdir -p var/cache var/log \
+    && chown -R www-data:www-data var \
+    && chmod -R 755 /var/www/html
 
 RUN set -eux; \
   { \
