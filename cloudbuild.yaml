@@ -14,9 +14,9 @@ images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:${SHORT_SHA}
 
 substitutions:
-  _REGION: europe-west9
+  _REGION: europe-west1
   _REPO: cloud-run-source-deploy
-  _IMAGE: cyclops/cyclops
+  _IMAGE: cyclops
 
 options:
   logging: CLOUD_LOGGING_ONLY
