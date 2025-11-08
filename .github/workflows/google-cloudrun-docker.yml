@@ -93,6 +93,9 @@ jobs:
             TRUSTED_HOSTS=.*
             APP_SECRET=${{ secrets.APP_SECRET }}
             DATABASE_URL=${{ secrets.DATABASE_URL }}
+            AWS_REGION=${{ secrets.AWS_REGION }}
+            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       # If required, use the Cloud Run URL output in later steps
       - name: 'Show output'
