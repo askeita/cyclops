@@ -38,6 +38,7 @@ env:
   PROJECT_ID: '297496186405'
   REGION: 'europe-west1'
   SERVICE: 'cyclops'
+  REPOSITORY: 'cyclops'
   WORKLOAD_IDENTITY_PROVIDER: 'projects/297496186405/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
   SERVICE_ACCOUNT: 'github-actions-sa@297496186405.iam.gserviceaccount.com'
 
