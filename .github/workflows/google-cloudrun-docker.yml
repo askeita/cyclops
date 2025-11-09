@@ -31,11 +31,10 @@ name: 'Build and Deploy to Cloud Run'
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 env:
-  PROJECT_ID: '297496186405'
+  PROJECT_ID: 'banded-object-476821-p9'
   REGION: 'europe-west1'
   SERVICE: 'cyclops'
   REPOSITORY: 'cyclops'
@@ -58,7 +57,7 @@ jobs:
       #
       # See https://github.com/google-github-actions/auth for more options,
       # including authenticating via a JSON credentials file.
-      - id: 'auth'
+      - id: auth
         name: 'Authenticate to Google Cloud'
         uses: google-github-actions/auth@v2
         with:
