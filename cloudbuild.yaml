@@ -15,7 +15,7 @@ images:
 
 substitutions:
   _REGION: europe-west1
-  _REPO: cloud-run-source-deploy
+  _REPO: cyclops
   _IMAGE: cyclops
 
 options:
