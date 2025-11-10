@@ -78,7 +78,7 @@ jobs:
         run: |-
           gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
             --location=${{ env.REGION }} \
-            --project${{ env.PROJECT_ID }}
+            --project=${{ env.PROJECT_ID }}
 
       # BEGIN - Docker auth and build
       # Authentication for pushing to Artifact Registry
