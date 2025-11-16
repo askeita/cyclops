@@ -40,6 +40,7 @@ env:
   REPOSITORY: 'cyclops'
   WORKLOAD_IDENTITY_PROVIDER: 'projects/297496186405/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
   SERVICE_ACCOUNT: 'github-actions-sa@banded-object-476821-p9.iam.gserviceaccount.com'
+  CLOUDSQL_INSTANCE: 'banded-object-476821-p9:europe-west1:cyclops-mysql'
 
 jobs:
   deploy:
@@ -100,21 +101,26 @@ jobs:
           docker push "${DOCKER_TAG}"
       # END - Docker auth and build
 
-      - name: 'Deploy to Cloud Run'
+      - id: deploy
+        name: 'Deploy to Cloud Run'
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: '${{ env.SERVICE }}'
           region: '${{ env.REGION }}'
           # NOTE: If using a pre-built image, update the image name below:
           image: '${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}'
-          flags: '--port=8080 --cpu=1 --memory=512Mi --min-instances=0 --max-instances=10 --allow-unauthenticated'
+          flags: >-
+            --port=8080 --cpu=1 --memory=512Mi --min-instances=0 --max-instances=10
+            --add-cloudsql-instances=${{ env.CLOUDSQL_INSTANCE }}
           env_vars: |
             APP_ENV=prod
             APP_DEBUG=0
             TRUSTED_PROXIES=0.0.0.0/0
             TRUSTED_HOSTS=.*
+            DATABASE_URL=mysql://root:password@127.0.0.1:3306/cyclops?serverVersion=8.0&charset=utf8mb4
+          secrets: |
+            DATABASE_URL=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_URL/versions/latest
 
       # If required, use the Cloud Run URL output in later steps
-      - name: 'Show output'
-        run: |2-
-          echo ${{ steps.deploy.outputs.url }}
+      - name: 'Show URL'
+        run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
