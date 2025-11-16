@@ -3,8 +3,9 @@
 namespace App\Security;
 
 use App\Controller\EmailController;
+use App\Entity\ApiKey;
+use App\Repository\ApiKeyRepository;
 use DateTime;
-use PDO;
 use Random\RandomException;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,6 +25,7 @@ class UserProvider implements UserProviderInterface
     private string $projectDir;
     private ParameterBagInterface $parameterBag;
     private EmailController $emailController;
+    private ApiKeyRepository $apiKeyRepository;
 
 
     /**
@@ -32,15 +34,18 @@ class UserProvider implements UserProviderInterface
      * @param string $projectDir
      * @param ParameterBagInterface $parameterBag
      * @param EmailController $emailController
+     * @param ApiKeyRepository $apiKeyRepository
      */
     public function __construct(
         string $projectDir,
         ParameterBagInterface $parameterBag,
-        EmailController $emailController
+        EmailController $emailController,
+        ApiKeyRepository $apiKeyRepository
     ) {
         $this->projectDir = $projectDir;
         $this->parameterBag = $parameterBag;
         $this->emailController = $emailController;
+        $this->apiKeyRepository = $apiKeyRepository;
     }
 
     /**
@@ -87,26 +92,24 @@ class UserProvider implements UserProviderInterface
      */
     public function loadUserByIdentifier(string $identifier): UserInterface
     {
-        // Hash email for uniqueness check
         $encryptionKey = $this->parameterBag->get('app.encryption_key');
         $hashedEmail = hash('sha3-512', $identifier . $encryptionKey);
 
-        // Use test database in test environment
-        $dbFile = $this->parameterBag->get('kernel.environment') === 'test' ? 'test.db' : 'data.db';
-        $pdo = new PDO('sqlite:' . $this->projectDir . '/var/' . $dbFile);
+        /** @var ApiKey|null $apiKey */
+        $apiKey = $this->apiKeyRepository->findOneBy([
+            'email' => $hashedEmail,
+            'emailVerified' => true,
+            'isActive' => true,
+        ]);
 
-        // Check if the user has a verified API key in the database
-        $stmt = $pdo->prepare('SELECT password, key_value FROM api_keys
-                 WHERE email = :email AND email_verified = :email_verified AND is_active = :is_active');
-        $stmt->execute(['email' => $hashedEmail, 'email_verified' => 1, 'is_active' => 1]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$user) {
+        if (!$apiKey) {
             throw new UserNotFoundException(sprintf('User with identifier "%s" not found.', $identifier));
         }
-        $hasApiKey = !empty($user['key_value']);
 
-        return new User($identifier, $user['password'], ['ROLE_USER'], $hasApiKey);
+        $hasApiKey = !empty($apiKey->getKeyValue());
+        $password = $apiKey->getPassword() ?? '';
+
+        return new User($identifier, $password, ['ROLE_USER'], $hasApiKey);
     }
 
     /**
@@ -120,17 +123,12 @@ class UserProvider implements UserProviderInterface
      */
     public function createUser(string $identifier, string $password): UserInterface|JsonResponse
     {
-        // Hash email for uniqueness check
         $encryptionKey = $this->parameterBag->get('app.encryption_key');
         $hashedEmail = hash('sha3-512', $identifier . $encryptionKey);
 
-        // Use test database in test environment
-        $dbFile = $this->parameterBag->get('kernel.environment') === 'test' ? 'test.db' : 'data.db';
-        $pdo = new PDO('sqlite:' . $this->projectDir . '/var/' . $dbFile);
-
-        // Email uniqueness check
-        $emailIsAvailable = $this->emailController->checkEmailAvailable($pdo, $hashedEmail);
-        if (!$emailIsAvailable) {
+        // Email uniqueness check via repository
+        $existing = $this->apiKeyRepository->findOneBy(['email' => $hashedEmail]);
+        if ($existing) {
             return new JsonResponse(
                 json_encode(['error' => 'Email is already registered']),
                 Response::HTTP_CONFLICT,
@@ -138,19 +136,18 @@ class UserProvider implements UserProviderInterface
             );
         }
 
-        // Generate verification token
-        $verificationToken = bin2hex(random_bytes(16));
+        // Create ApiKey entity in inactive/unverified state
+        $entity = new ApiKey();
+        $entity->setEmail($hashedEmail)
+            ->setPassword($password)
+            ->setIsActive(false)
+            ->setEmailVerified(false)
+            ->setCreatedAt(new DateTime());
 
-        $stmt = $pdo->prepare('INSERT INTO api_keys (email, password, email_verified, verification_token, is_active, created_at)
-                 VALUES (:email, :password, :email_verified, :verification_token, :is_active, :created_at)');
-        $stmt->execute([
-            'email' => $hashedEmail,
-            'password' => $password,
-            'email_verified' => 0,
-            'is_active' => 0,
-            'created_at' => (new DateTime())->format('Y-m-d H:i:s'),
-            'verification_token' => $verificationToken,
-        ]);
+        $verificationToken = bin2hex(random_bytes(16));
+        $entity->setVerificationToken($verificationToken);
+
+        $this->apiKeyRepository->save($entity, true);
 
         // Send verification email
         $this->emailController->sendVerificationEmail($identifier, $verificationToken);

@@ -3,12 +3,14 @@
 namespace App\Tests\Controller;
 
 use App\Controller\EmailController;
+use App\Entity\ApiKey;
 use App\Kernel;
-use PDO;
+use Doctrine\ORM\Tools\SchemaTool;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mailer\MailerInterface;
+use App\Tests\Traits\EnsureTestDatabaseTrait;
 
 
 /**
@@ -18,6 +20,8 @@ use Symfony\Component\Mailer\MailerInterface;
  */
 class EmailControllerTest extends WebTestCase
 {
+    use EnsureTestDatabaseTrait;
+
     private KernelBrowser $client;
 
 
@@ -28,33 +32,8 @@ class EmailControllerTest extends WebTestCase
      */
     public static function setUpBeforeClass(): void
     {
-        // Create test database directory
-        $testDbDir = sys_get_temp_dir() . '/cyclops_test';
-        if (!is_dir($testDbDir)) {
-            mkdir($testDbDir, 0755, true);
-        }
-
-        // Create test database in project var directory for consistency with EmailController
-        $projectDir = dirname(__DIR__, 2);
-        $testDbPath = $projectDir . '/var/test.db';
-
-        // Ensure var directory exists
-        if (!is_dir($projectDir . '/var')) {
-            mkdir($projectDir . '/var', 0755, true);
-        }
-
-        // Define environment variables for testing
-        $_ENV['DATABASE_URL'] = 'sqlite:///' . $testDbPath;
-        $_ENV['APP_ENV'] = 'test';
-        $_ENV['APP_SECRET'] = 's$cretf0rt3st';
-        $_ENV['ENCRYPTION_KEY'] = 'test_encryption_key_for_tests';
-        $_ENV['MAILER_DSN'] = 'null://null';
-
-        // Ensure environment variables are set in $_SERVER and via putenv
-        foreach ($_ENV as $key => $value) {
-            $_SERVER[$key] = $value;
-            putenv("$key=$value");
-        }
+        self::ensureTestDatabaseEnv();
+        putenv('MAILER_DSN=null://null'); $_ENV['MAILER_DSN']='null://null'; $_SERVER['MAILER_DSN']='null://null';
     }
 
     /**
@@ -65,10 +44,22 @@ class EmailControllerTest extends WebTestCase
     protected function setUp(): void
     {
         $this->client = static::createClient();
-        $this->initializeTestDatabase();
+        $this->initializeSchema();
+    }
 
-        // We'll get the controller from the container when needed
-        // to ensure it has access to Symfony services
+    /**
+     * Initialize database schema for tests
+     *
+     * @return void
+     */
+    private function initializeSchema(): void
+    {
+        $em = $this->client->getContainer()->get('doctrine')->getManager();
+        $tool = new SchemaTool($em);
+        $classes = $em->getMetadataFactory()->getAllMetadata();
+        $tool->dropSchema($classes);
+        $tool->createSchema($classes);
+        $em->clear();
     }
 
     /**
@@ -78,36 +69,24 @@ class EmailControllerTest extends WebTestCase
      */
     public function testCheckEmailAvailable(): void
     {
-        // Create test database connection
-        $projectDir = dirname(__DIR__, 2);
-        $dbPath = $projectDir . '/var/test.db';
-        $pdo = new PDO('sqlite:' . $dbPath);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-        $testEmail = 'test@example.com';
-        $hashedEmail = hash('sha3-512', $testEmail . $_ENV['ENCRYPTION_KEY']);
-
-        // Get controller from container
         $controller = $this->client->getContainer()->get(EmailController::class);
+        $hashed = hash('sha3-512', 'test@example.com' . $_ENV['ENCRYPTION_KEY']);
 
-        // Test with non-existing email (should return true)
-        $result = $controller->checkEmailAvailable($pdo, $hashedEmail);
-        $this->assertTrue($result, 'Email should be available');
+        // Aucun enregistrement: doit être disponible
+        $this->assertTrue($controller->checkEmailAvailable($hashed));
 
-        // Add email to database
-        $stmt = $pdo->prepare("INSERT INTO api_keys (email, password, is_active, created_at, usage_count, email_verified) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([
-            $hashedEmail,
-            'test_password',
-            1, // is_active
-            date('Y-m-d H:i:s'),
-            0, // usage_count
-            0  // email_verified
-        ]);
+        // Crée un ApiKey avec cet email
+        $em = $this->client->getContainer()->get('doctrine.orm.entity_manager');
+        $entity = (new ApiKey())
+            ->setEmail($hashed)
+            ->setIsActive(false)
+            ->setEmailVerified(false)
+        ;
+        $em->persist($entity);
+        $em->flush();
 
-        // Test with existing email (should return false)
-        $result = $controller->checkEmailAvailable($pdo, $hashedEmail);
-        $this->assertFalse($result, 'Email should not be available');
+        // Maintenant indisponible
+        $this->assertFalse($controller->checkEmailAvailable($hashed));
     }
 
     /**
@@ -151,21 +130,28 @@ class EmailControllerTest extends WebTestCase
      */
     public function testVerifyEmailWithValidToken(): void
     {
-        // Prepare test data
-        $testEmail = 'test@example.com';
-        $hashedEmail = hash('sha3-512', $testEmail . $_ENV['ENCRYPTION_KEY']);
-        $testToken = 'valid_test_token';
+        $em = $this->client->getContainer()->get('doctrine.orm.entity_manager');
+        $hashed = hash('sha3-512', 'test@example.com' . $_ENV['ENCRYPTION_KEY']);
+        $token = 'valid_test_token';
+        $apiKey = (new ApiKey())
+            ->setEmail($hashed)
+            ->setVerificationToken($token)
+            ->setIsActive(false)
+            ->setEmailVerified(false);
+        $em->persist($apiKey);
+        $em->flush();
 
-        // Create test user with verification token
-        $this->createTestUserWithToken($hashedEmail, $testToken);
-
-        $this->client->request('GET', '/email-verify', ['token' => $testToken]);
-
-        // Should redirect to login with emailVerified parameter
+        $this->client->request('GET', '/email-verify', ['token' => $token]);
         $response = $this->client->getResponse();
         $this->assertEquals(302, $response->getStatusCode());
         $this->assertStringContainsString('/login', $response->headers->get('Location'));
         $this->assertStringContainsString('emailVerified=true', $response->headers->get('Location'));
+
+        $em->clear();
+        $reloaded = $em->getRepository(ApiKey::class)->find($apiKey->getId());
+        $this->assertTrue($reloaded->isEmailVerified());
+        $this->assertTrue($reloaded->isActive());
+        $this->assertNull($reloaded->getVerificationToken());
     }
 
     /**
@@ -197,63 +183,16 @@ class EmailControllerTest extends WebTestCase
     }
 
     /**
-     * Test that verifyEmail updates user correctly in database
-     *
-     * @return void
-     */
-    public function testVerifyEmailUpdatesUserCorrectly(): void
-    {
-        // Prepare test data
-        $testEmail = 'test@example.com';
-        $hashedEmail = hash('sha3-512', $testEmail . $_ENV['ENCRYPTION_KEY']);
-        $testToken = 'valid_test_token_for_update';
-
-        // Create test user with verification token
-        $this->createTestUserWithToken($hashedEmail, $testToken);
-
-        $this->client->request('GET', '/email-verify', ['token' => $testToken]);
-
-        // Verify that user was updated in database
-        $projectDir = dirname(__DIR__, 2);
-        $dbPath = $projectDir . '/var/test.db';
-        $pdo = new PDO('sqlite:' . $dbPath);
-
-        $stmt = $pdo->prepare('SELECT email_verified, is_active, verification_token FROM api_keys WHERE email = :email');
-        $stmt->execute(['email' => $hashedEmail]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        $this->assertNotFalse($user, 'User should exist in database');
-        $this->assertEquals(1, $user['email_verified'], 'Email should be verified');
-        $this->assertEquals(1, $user['is_active'], 'User should be active');
-        $this->assertNull($user['verification_token'], 'Verification token should be cleared');
-    }
-
-    /**
      * Test checkEmailAvailable endpoint accessibility
      *
      * @return void
      */
     public function testCheckEmailAvailableEndpoint(): void
     {
-        // This tests the route if it's accessible (though it has unusual signature for a route)
-        // The method signature suggests it's meant to be called internally rather than as an endpoint
-
-        // Try to access the check endpoint (may not work due to method signature)
+        // La méthode est une action qui retourne un bool, pas une Response.
+        // On se limite à vérifier que l'URL existe sans erreur serveur.
         $this->client->request('GET', '/email-check');
-
-        // Accept any response since the endpoint has unusual signature
-        $response = $this->client->getResponse();
-        $this->assertInstanceOf(Response::class, $response);
-    }
-
-    /**
-     * Tear down environment after all tests have run
-     *
-     * @return void
-     */
-    public static function tearDownAfterClass(): void
-    {
-        parent::tearDownAfterClass();
+        $this->assertInstanceOf(Response::class, $this->client->getResponse());
     }
 
     /**
@@ -264,74 +203,5 @@ class EmailControllerTest extends WebTestCase
     protected static function getKernelClass(): string
     {
         return Kernel::class;
-    }
-
-    /**
-     * Initialize test database
-     *
-     * @return void
-     */
-    private function initializeTestDatabase(): void
-    {
-        $projectDir = dirname(__DIR__, 2);
-        $dbPath = $projectDir . '/var/test.db'; // Use the test database path
-
-        // Backup existing database if it exists
-        if (file_exists($dbPath)) {
-            copy($dbPath, $dbPath . '.backup');
-            unlink($dbPath);
-        }
-
-        $pdo = new PDO('sqlite:' . $dbPath);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-        // Create api_keys table matching the structure expected by EmailController
-        $createApiKeysSQL = "
-            CREATE TABLE api_keys (
-                id INTEGER PRIMARY KEY,
-                email VARCHAR(255) NOT NULL,
-                password VARCHAR(255) NOT NULL,
-                last_connection DATETIME default NULL,
-                email_verified INTEGER DEFAULT 0,
-                verification_token VARCHAR(255),
-                is_active INTEGER DEFAULT 0,
-                created_at DATETIME NOT NULL,
-                key_value VARCHAR(255) UNIQUE,
-                last_used_at DATETIME,
-                usage_count INTEGER DEFAULT 0
-            )
-        ";
-
-        $pdo->exec($createApiKeysSQL);
-    }
-
-    /**
-     * Create a test user with a verification token
-     *
-     * @param string $hashedEmail
-     * @param string $token
-     * @return void
-     */
-    private function createTestUserWithToken(string $hashedEmail, string $token): void
-    {
-        $projectDir = dirname(__DIR__, 2);
-        $dbPath = $projectDir . '/var/test.db';
-        $pdo = new PDO('sqlite:' . $dbPath);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-        // Remove existing user first
-        $pdo->exec("DELETE FROM api_keys WHERE email = '$hashedEmail'");
-
-        // Insert new user with verification token
-        $stmt = $pdo->prepare("INSERT INTO api_keys (email, password, verification_token, email_verified, is_active, created_at, usage_count) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([
-            $hashedEmail,
-            'test_password',
-            $token,
-            0, // email_verified = false initially
-            0, // is_active = false initially
-            date('Y-m-d H:i:s'),
-            0
-        ]);
     }
 }

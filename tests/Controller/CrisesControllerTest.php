@@ -6,12 +6,13 @@ use App\Kernel;
 use App\Repository\CrisisRepository;
 use App\Entity\Crisis;
 use App\Controller\CrisesController;
+use App\Entity\ApiKey;
 use Doctrine\ORM\Tools\SchemaTool;
 use Exception;
-use PDO;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
-
+use App\Tests\Traits\EnsureTestDatabaseTrait;
+use Doctrine\ORM\Mapping\MappingException as DoctrineMappingException;
 
 /**
  * Class CrisesControllerTest
@@ -20,8 +21,9 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
  */
 class CrisesControllerTest extends WebTestCase
 {
-    private KernelBrowser $client;
+    use EnsureTestDatabaseTrait;
 
+    private KernelBrowser $client;
 
     /**
      * Set up the test environment once for all tests.
@@ -30,29 +32,7 @@ class CrisesControllerTest extends WebTestCase
      */
     public static function setUpBeforeClass(): void
     {
-        // Create test database directory
-        $testDbDir = sys_get_temp_dir() . '/cyclops_test';
-        if (!is_dir($testDbDir)) {
-            mkdir($testDbDir, 0755, true);
-        }
-
-        // Define environment variables for testing - use same DB as DocumentationControllerTest
-        $_ENV['DATABASE_URL'] = 'sqlite:///' . $testDbDir . '/test.db';
-        $_ENV['APP_ENV'] = 'test';
-        $_ENV['APP_SECRET'] = 's$cretf0rt3st';
-        $_ENV['ENCRYPTION_KEY'] = 'test_encryption_key_for_tests';
-        $_ENV['MAILER_DSN'] = 'null://null';
-        $_ENV['AWS_REGION'] = 'us-east-1';
-        $_ENV['AWS_ACCESS_KEY_ID'] = 'test';
-        $_ENV['AWS_SECRET_ACCESS_KEY'] = 'test';
-        $_ENV['DYNAMODB_ENDPOINT'] = 'http://localhost:8000';
-        $_ENV['AWS_USE_FAKES3'] = 'true';
-
-        // Ensure environment variables are set in $_SERVER and via putenv
-        foreach ($_ENV as $key => $value) {
-            $_SERVER[$key] = $value;
-            putenv("$key=$value");
-        }
+        self::ensureTestDatabaseEnv();
     }
 
     /**
@@ -538,82 +518,12 @@ class CrisesControllerTest extends WebTestCase
      */
     private function initializeTestDatabase(): void
     {
-        try {
-            // Create a temporary client to access the container
-            $client = static::createClient();
-
-            $entityManager = $client->getContainer()->get('doctrine')->getManager();
-
-            // Force recreation of schema for tests
-            $schemaTool = new SchemaTool($entityManager);
-            $classes = $entityManager->getMetadataFactory()->getAllMetadata();
-
-            try {
-                // Drop existing schema and recreate
-                $schemaTool->dropSchema($classes);
-                $schemaTool->createSchema($classes);
-            } catch (Exception) {
-                // If drop fails, try to create
-                try {
-                    $schemaTool->createSchema($classes);
-                } catch (Exception) {
-                    // Last resort: continue without error
-                }
-            }
-
-            // Clear entity manager to ensure fresh state
-            $entityManager->clear();
-        } catch (Exception) {
-            // Fallback to PDO schema creation if Doctrine fails
-            self::createSchemaWithPDO();
-        }
-    }
-
-    /**
-     * Fallback method to create schema with PDO
-     *
-     * @return void
-     */
-    private static function createSchemaWithPDO(): void
-    {
-        $testDbDir = sys_get_temp_dir() . '/cyclops_test';
-        $dbPath = $testDbDir . '/test.db';
-
-        $pdo = new PDO('sqlite:' . $dbPath);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-        // Create api_keys table
-        $createApiKeysSQL = "
-            CREATE TABLE IF NOT EXISTS api_keys (
-                id INTEGER PRIMARY KEY,
-                key_value VARCHAR(255) UNIQUE NOT NULL,
-                email VARCHAR(255) NULL,
-                is_active BOOLEAN DEFAULT 1,
-                created_at DATETIME NOT NULL,
-                last_used_at DATETIME NULL,
-                usage_count INTEGER DEFAULT 0
-            )
-        ";
-
-        $pdo->exec($createApiKeysSQL);
-
-        // Create crisis table if it doesn't exist
-        $createCrisisSQL = "
-            CREATE TABLE IF NOT EXISTS crisis (
-                id INTEGER PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                type VARCHAR(100) NULL,
-                severity VARCHAR(50) NULL,
-                economic_impact DECIMAL(15,2) NULL,
-                start_date DATE NULL,
-                end_date DATE NULL,
-                description TEXT NOT NULL,
-                created_at DATETIME NOT NULL,
-                updated_at DATETIME NULL
-            )
-        ";
-
-        $pdo->exec($createCrisisSQL);
+        $entityManager = $this->client->getContainer()->get('doctrine')->getManager();
+        $schemaTool = new SchemaTool($entityManager);
+        $classes = $entityManager->getMetadataFactory()->getAllMetadata();
+        try { $schemaTool->dropSchema($classes); } catch (Exception) {}
+        try { $schemaTool->createSchema($classes); } catch (Exception) {}
+        $entityManager->clear();
     }
 
     /**
@@ -624,45 +534,30 @@ class CrisesControllerTest extends WebTestCase
      */
     private function loginAsApiUser(): void
     {
-        // Create a user with API key in test database
-        $this->createTestApiUser();
-    }
+        try {
+            $em = $this->client->getContainer()->get('doctrine.orm.entity_manager');
+            if (!is_object($em) || !$em instanceof \Doctrine\ORM\EntityManagerInterface) {
+                $this->fail('EntityManager is not properly configured or unavailable.');
+            }
 
-    /**
-     * Creates a test API user in the database.
-     *
-     * @return void
-     * @throws Exception
-     */
-    private function createTestApiUser(): void
-    {
-        // Use the same test database as configured in setUpBeforeClass
-        $testDbDir = sys_get_temp_dir() . '/cyclops_test';
-        $dbPath = $testDbDir . '/test.db';
+            // Ensure the schema includes the ApiKey entity
+            $schemaTool = new SchemaTool($em);
+            $classes = $em->getMetadataFactory()->getAllMetadata();
+            $schemaTool->updateSchema($classes, true);
 
-        $pdo = new PDO('sqlite:' . $dbPath);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $existing = $em->getRepository(ApiKey::class)->findOneBy(['keyValue' => 'test_api_key']);
 
-        $testApiKey = 'test_api_key';
-        $testEmail = 'test@example.com';
-
-        // Remove existing key first
-        $pdo->exec("DELETE FROM api_keys WHERE key_value = '$testApiKey'");
-
-        // Insert new API key
-        $stmt = $pdo->prepare("INSERT INTO api_keys (key_value, email, is_active, created_at, usage_count) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([
-            $testApiKey,
-            $testEmail,
-            1,
-            date('Y-m-d H:i:s'),
-            0
-        ]);
-
-        // Verify the key was inserted
-        $verify = $pdo->query("SELECT * FROM api_keys WHERE key_value = '$testApiKey'")->fetch();
-        if (!$verify) {
-            throw new Exception("Failed to create test API key");
+            if (!$existing) {
+                $apiKey = (new ApiKey())
+                    ->setKeyValue('test_api_key')
+                    ->setIsActive(true);
+                $em->persist($apiKey);
+                $em->flush();
+            }
+        } catch (DoctrineMappingException $e) {
+            $this->fail('Mapping ApiKey introuvable: ' . $e->getMessage());
+        } catch (Exception $e) {
+            $this->fail('Erreur lors de la configuration de l’utilisateur API: ' . $e->getMessage());
         }
     }
 }

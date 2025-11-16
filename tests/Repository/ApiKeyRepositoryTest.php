@@ -5,6 +5,7 @@ namespace App\Tests\Repository;
 use ApiPlatform\Metadata\Exception\RuntimeException;
 use App\Entity\ApiKey;
 use App\Kernel;
+use App\Tests\Traits\EnsureTestDatabaseTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
 use ReflectionException;
@@ -19,6 +20,8 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
  */
 class ApiKeyRepositoryTest extends KernelTestCase
 {
+    use EnsureTestDatabaseTrait;
+
     private ?EntityManagerInterface $em = null;
 
     /**
@@ -28,23 +31,8 @@ class ApiKeyRepositoryTest extends KernelTestCase
      */
     public static function setUpBeforeClass(): void
     {
-        $testDbDir = sys_get_temp_dir() . '/cyclops_test_repo';
-        if (!is_dir($testDbDir)) {
-            @mkdir($testDbDir, 0755, true);
-        }
-        $dbPath = $testDbDir . '/test.db';
-
-        $env = [
-            'APP_ENV' => 'test',
-            'APP_SECRET' => 's$cretf0rt3st',
-            'DATABASE_URL' => 'sqlite:///' . $dbPath,
-        ];
-
-        foreach ($env as $k => $v) {
-            $_ENV[$k] = $v;
-            $_SERVER[$k] = $v;
-            putenv($k . '=' . $v);
-        }
+        self::ensureTestDatabaseEnv();
+        putenv('MAILER_DSN=null://null'); $_ENV['MAILER_DSN']='null://null'; $_SERVER['MAILER_DSN']='null://null';
     }
 
     /**
@@ -54,14 +42,22 @@ class ApiKeyRepositoryTest extends KernelTestCase
      */
     protected function setUp(): void
     {
+        // Ensure the database tests are not skipped
+        if (getenv('SKIP_DB_TESTS')) {
+            putenv('SKIP_DB_TESTS');
+            unset($_ENV['SKIP_DB_TESTS'], $_SERVER['SKIP_DB_TESTS']);
+        }
+
         self::bootKernel();
         $this->em = self::getContainer()->get('doctrine')->getManager();
 
         // (Re)create database schema for a clean slate
         $metadata = $this->em->getMetadataFactory()->getAllMetadata();
         $tool = new SchemaTool($this->em);
-        $tool->dropSchema($metadata);
-        $tool->createSchema($metadata);
+        if (count($metadata) > 0) {
+            $tool->dropSchema($metadata);
+            $tool->createSchema($metadata);
+        }
     }
 
     /**

@@ -18,23 +18,36 @@ class ApiKey
     #[ORM\Column(type: 'integer')]
     private ?int $id = null;
 
-    #[ORM\Column(type: 'string', length: 255, unique: true)]
+    #[ORM\Column(name: 'key_value', type: 'string', length: 255, unique: true, nullable: true)]
     private ?string $keyValue = null;
 
-    #[ORM\Column(type: 'boolean')]
+    #[ORM\Column(name: 'is_active', type: 'boolean')]
     private bool $isActive = true;
 
-    #[ORM\Column(type: 'datetime')]
+    #[ORM\Column(name: 'created_at', type: 'datetime')]
     private ?\DateTimeInterface $createdAt = null;
 
-    #[ORM\Column(type: 'datetime', nullable: true)]
+    #[ORM\Column(name: 'last_used_at', type: 'datetime', nullable: true)]
     private ?\DateTimeInterface $lastUsedAt = null;
 
-    #[ORM\Column(type: 'integer', nullable: true)]
-    private ?int $usageCount = 0;
+    #[ORM\Column(name: 'usage_count', type: 'integer', options: ['default' => 0])]
+    private int $usageCount = 0;
 
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
     private ?string $email = null;
+
+    // Champs ajoutés pour correspondre aux accès existants
+    #[ORM\Column(type: 'string', length: 255, nullable: true)]
+    private ?string $password = null;
+
+    #[ORM\Column(name: 'email_verified', type: 'boolean', options: ['default' => false])]
+    private bool $emailVerified = false;
+
+    #[ORM\Column(name: 'verification_token', type: 'string', length: 255, nullable: true)]
+    private ?string $verificationToken = null;
+
+    #[ORM\Column(name: 'last_connection', type: 'datetime', nullable: true)]
+    private ?\DateTimeInterface $lastConnection = null;
 
 
     /**
@@ -148,7 +161,7 @@ class ApiKey
      *
      * @return int|null
      */
-    public function getUsageCount(): ?int
+    public function getUsageCount(): int
     {
         return $this->usageCount;
     }
@@ -156,10 +169,10 @@ class ApiKey
     /**
      * Set the usage count of the API key
      *
-     * @param int|null $usageCount number of times the API key has been used
+     * @param int $usageCount number of times the API key has been used
      * @return $this
      */
-    public function setUsageCount(?int $usageCount): self
+    public function setUsageCount(int $usageCount): self
     {
         $this->usageCount = $usageCount;
         return $this;
@@ -196,6 +209,94 @@ class ApiKey
     public function setEmail(?string $email): self
     {
         $this->email = $email;
+        return $this;
+    }
+
+    /**
+     * Get the password associated with the API key
+     *
+     * @return string|null
+     */
+    public function getPassword(): ?string
+    {
+        return $this->password;
+    }
+
+    /**
+     * Set the password associated with the API key
+     *
+     * @param string|null $password
+     * @return $this
+     */
+    public function setPassword(?string $password): self
+    {
+        $this->password = $password;
+        return $this;
+    }
+
+    /**
+     * Check if the email is verified for the API key
+     *
+     * @return bool
+     */
+    public function isEmailVerified(): bool
+    {
+        return $this->emailVerified;
+    }
+
+    /**
+     * Set the email verification status for the API key
+     *
+     * @param bool $emailVerified
+     * @return $this
+     */
+    public function setEmailVerified(bool $emailVerified): self
+    {
+        $this->emailVerified = $emailVerified;
+        return $this;
+    }
+
+    /**
+     * Get the verification token for the API key
+     *
+     * @return string|null
+     */
+    public function getVerificationToken(): ?string
+    {
+        return $this->verificationToken;
+    }
+
+    /**
+     * Set the verification token for the API key
+     *
+     * @param string|null $verificationToken
+     * @return $this
+     */
+    public function setVerificationToken(?string $verificationToken): self
+    {
+        $this->verificationToken = $verificationToken;
+        return $this;
+    }
+
+    /**
+     * Get the last connection date of the API key
+     *
+     * @return \DateTimeInterface|null
+     */
+    public function getLastConnection(): ?\DateTimeInterface
+    {
+        return $this->lastConnection;
+    }
+
+    /**
+     * Set the last connection date of the API key
+     *
+     * @param \DateTimeInterface|null $lastConnection
+     * @return $this
+     */
+    public function setLastConnection(?\DateTimeInterface $lastConnection): self
+    {
+        $this->lastConnection = $lastConnection;
         return $this;
     }
 }

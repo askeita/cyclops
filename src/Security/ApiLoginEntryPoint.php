@@ -40,12 +40,16 @@ class ApiLoginEntryPoint implements AuthenticationEntryPointInterface
      */
     public function start(Request $request, ?AuthenticationException $authException = null): Response
     {
-        // Rediriger vers /login quand on tente d'accéder à la doc API via navigateur
         $route = (string) $request->attributes->get('_route', '');
         $path = $request->getPathInfo();
         $accept = (string) $request->headers->get('Accept', '');
 
-        if ($route === 'api_doc' || str_starts_with($path, '/api/docs') || str_contains($accept, 'text/html')) {
+        // Rediriger seulement les requêtes GET HTML vers la doc (navigation humaine), pas l'endpoint d'auth
+        if (
+            $request->isMethod('GET') &&
+            ($route === 'api_doc' || (str_starts_with($path, '/api/docs') && $path !== '/api/docs/auth')) &&
+            (str_contains($accept, 'text/html') || $accept === '' || $accept === '*/*')
+        ) {
             return new RedirectResponse($this->urlGenerator->generate('app_login'));
         }
 

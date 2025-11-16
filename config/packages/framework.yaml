@@ -12,5 +12,6 @@ when@dev:
 when@test:
     framework:
         test: true
+        secret: 'test_secret' # Default value for APP_SECRET in test environment
         session:
             storage_factory_id: session.storage.factory.mock_file

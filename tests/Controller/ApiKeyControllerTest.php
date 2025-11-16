@@ -8,12 +8,12 @@ use App\Entity\ApiKey;
 use DateTime;
 use Doctrine\ORM\Tools\SchemaTool;
 use Exception;
-use PDO;
 use Random\RandomException;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Response;
+use App\Tests\Traits\EnsureTestDatabaseTrait;
 
 
 /**
@@ -23,6 +23,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class ApiKeyControllerTest extends WebTestCase
 {
+    use EnsureTestDatabaseTrait;
     private static ?KernelBrowser $client = null;
 
     /**
@@ -30,27 +31,15 @@ class ApiKeyControllerTest extends WebTestCase
      */
     public static function setUpBeforeClass(): void
     {
-        // Create test database directory
-        $testDbDir = sys_get_temp_dir() . '/cyclops_test';
-        if (!is_dir($testDbDir)) {
-            mkdir($testDbDir, 0755, true);
-        }
+        self::ensureTestDatabaseEnv();
+    }
 
-        // Define environment variables for testing - use same DB as other tests
-        $_ENV['DATABASE_URL'] = 'sqlite:///' . $testDbDir . '/test.db';
-        $_ENV['APP_ENV'] = 'test';
-        $_ENV['APP_SECRET'] = 's$cretf0rt3st';
-        $_ENV['ENCRYPTION_KEY'] = 'test_encryption_key_for_tests';
-        $_ENV['MAILER_DSN'] = 'null://null';
-        $_ENV['AWS_REGION'] = 'us-east-1';
-        $_ENV['AWS_ACCESS_KEY_ID'] = 'test_key';
-        $_ENV['AWS_SECRET_ACCESS_KEY'] = 'test_secret';
-
-        // Ensure environment variables are set in $_SERVER and via putenv
-        foreach ($_ENV as $key => $value) {
-            $_SERVER[$key] = $value;
-            putenv("$key=$value");
-        }
+    /**
+     * Get the kernel class for the test.
+     */
+    protected static function getKernelClass(): string
+    {
+        return Kernel::class;
     }
 
     /**
@@ -60,6 +49,7 @@ class ApiKeyControllerTest extends WebTestCase
      */
     protected function setUp(): void
     {
+        // Ensure test kernel/client is created fresh for each test
         self::$client = static::createClient();
         $this->initializeTestDatabase();
     }
@@ -297,24 +287,13 @@ class ApiKeyControllerTest extends WebTestCase
     }
 
     /**
-     * Get the kernel class for the test.
-     *
-     * @return string
-     */
-    protected static function getKernelClass(): string
-    {
-        return Kernel::class;
-    }
-
-    /**
      * Clean up after tests.
      *
      * @return void
      */
     protected function tearDown(): void
     {
-        // Skip cleanup to avoid environment variable issues
-        // Tests use in-memory SQLite so data is automatically cleaned up
+        self::$client = null; // éviter réutilisation d'un client lié à un kernel shutdown
         parent::tearDown();
     }
 
@@ -325,7 +304,6 @@ class ApiKeyControllerTest extends WebTestCase
      */
     public static function tearDownAfterClass(): void
     {
-        // Properly clean up the shared client without accessing the container
         self::$client = null;
         parent::tearDownAfterClass();
     }
@@ -335,63 +313,14 @@ class ApiKeyControllerTest extends WebTestCase
      */
     private function initializeTestDatabase(): void
     {
-        try {
-            if (self::$client === null) {
-                throw new Exception("Client not initialized before database setup");
-            }
+        $entityManager = self::$client->getContainer()->get('doctrine')->getManager();
 
-            $entityManager = self::$client->getContainer()->get('doctrine')->getManager();
+        $schemaTool = new SchemaTool($entityManager);
+        $classes = $entityManager->getMetadataFactory()->getAllMetadata();
 
-            // Force recreation of schema for tests
-            $schemaTool = new SchemaTool($entityManager);
-            $classes = $entityManager->getMetadataFactory()->getAllMetadata();
-
-            try {
-                // Drop existing schema and recreate
-                $schemaTool->dropSchema($classes);
-                $schemaTool->createSchema($classes);
-            } catch (Exception) {
-                // If drop fails, try to create
-                try {
-                    $schemaTool->createSchema($classes);
-                } catch (Exception) {
-                    // Last resort: continue without error
-                }
-            }
-
-            // Clear entity manager to ensure fresh state
-            $entityManager->clear();
-        } catch (Exception) {
-            // Fallback to PDO schema creation if Doctrine fails
-            $this->createSchemaWithPDO();
-        }
-    }
-
-    /**
-     * Fallback method to create schema with PDO
-     */
-    private function createSchemaWithPDO(): void
-    {
-        $testDbDir = sys_get_temp_dir() . '/cyclops_test';
-        $dbPath = $testDbDir . '/test.db';
-
-        $pdo = new PDO('sqlite:' . $dbPath);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-        // Create api_keys table matching the actual ApiKey entity
-        $createApiKeysSQL = "
-            CREATE TABLE IF NOT EXISTS api_keys (
-                id INTEGER PRIMARY KEY,
-                key_value VARCHAR(255) UNIQUE NOT NULL,
-                email VARCHAR(255) NULL,
-                is_active BOOLEAN DEFAULT 1,
-                created_at DATETIME NOT NULL,
-                last_used_at DATETIME NULL,
-                usage_count INTEGER DEFAULT 0
-            )
-        ";
-
-        $pdo->exec($createApiKeysSQL);
+        try { $schemaTool->dropSchema($classes); } catch (Exception) {}
+        try { $schemaTool->createSchema($classes); } catch (Exception) {}
+        $entityManager->clear();
     }
 
     /**
@@ -428,11 +357,7 @@ class ApiKeyControllerTest extends WebTestCase
      */
     private function createTestApiKey($client): string
     {
-        try {
-            $keyValue = bin2hex(random_bytes(32));
-        } catch (RandomException $e) {
-            throw new RuntimeException("Failed to generate random API key: " . $e->getMessage());
-        }
+        $keyValue = bin2hex(random_bytes(32));
 
         $apiKey = new ApiKey();
         $apiKey->setKeyValue($keyValue);
@@ -451,34 +376,16 @@ class ApiKeyControllerTest extends WebTestCase
      */
     private function loginAsApiUser(): void
     {
-        $this->createTestApiKeyForAuth();
-    }
-
-    /**
-     * Create a test API key for authentication
-     */
-    private function createTestApiKeyForAuth(): void
-    {
-        $testDbDir = sys_get_temp_dir() . '/cyclops_test';
-        $dbPath = $testDbDir . '/test.db';
-
-        $pdo = new PDO('sqlite:' . $dbPath);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-        $testApiKey = 'test_api_key_123';
-        $testEmail = 'test@example.com';
-
-        // Remove existing key first
-        $pdo->exec("DELETE FROM api_keys WHERE key_value = '$testApiKey'");
-
-        // Insert new API key with only the columns that actually exist
-        $stmt = $pdo->prepare("INSERT INTO api_keys (key_value, email, is_active, created_at, usage_count) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([
-            $testApiKey,
-            $testEmail,
-            1, // is_active = true
-            date('Y-m-d H:i:s'),
-            0  // usage_count = 0
-        ]);
+        // Insert a test API key into the database if not already present
+        $em = self::$client->getContainer()->get('doctrine.orm.entity_manager');
+        $existing = $em->getRepository(ApiKey::class)->findOneBy(['keyValue' => 'test_api_key_123']);
+        if (!$existing) {
+            $k = (new ApiKey())
+                ->setKeyValue('test_api_key_123')
+                ->setIsActive(true)
+                ->setCreatedAt(new DateTime());
+            $em->persist($k);
+            $em->flush();
+        }
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Controller;
 
+use App\Entity\ApiKey;
+use Doctrine\ORM\EntityManagerInterface;
 use Random\RandomException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -17,6 +19,13 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[IsGranted('ROLE_USER')]
 class DashboardController extends AbstractController
 {
+    private EntityManagerInterface $em;
+
+    public function __construct(EntityManagerInterface $em)
+    {
+        $this->em = $em;
+    }
+
     /**
      * User dashboard route
      *
@@ -36,24 +45,20 @@ class DashboardController extends AbstractController
         $encryptionKey = $this->getParameter('app.encryption_key');
         $hashedEmail = hash('sha3-512', $email . $encryptionKey);
 
-        // Use test database in test environment
-        $dbFile = $this->getParameter('kernel.environment') === 'test' ? 'test.db' : 'data.db';
-        $pdo = new \PDO('sqlite:' . $this->getParameter('kernel.project_dir'). '/var/' . $dbFile);
-        $stmt = $pdo->prepare('SELECT id, key_value, last_connection FROM api_keys
-                                      WHERE email = :email AND email_verified = :email_verified');
-        $stmt->execute(['email' => $hashedEmail, 'email_verified' => 1]);
-        $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $repo = $this->em->getRepository(ApiKey::class);
+        /** @var ApiKey|null $user */
+        $user = $repo->findOneBy(['email' => $hashedEmail, 'emailVerified' => true]);
 
         // Update user last connection time
-        $updatedLastConnection = (new \DateTime())->format('Y-m-d H:i:s');
+        $updatedLastConnection = new \DateTime();
         if ($user) {
-            $stmt = $pdo->prepare("UPDATE api_keys SET last_connection = :last_connection WHERE id = :id");
-            $stmt->execute(['last_connection' => $updatedLastConnection, 'id' => $user['id']]);
+            $user->setLastConnection($updatedLastConnection);
+            $this->em->flush();
         }
 
         return $this->render('dashboard/index.html.twig', [
-            'userApiKey' => $user['key_value'] ?? '',
-            'lastConnection' => $user['last_connection'] ?? (new \DateTime())->format('Y-m-d H:i:s'),
+            'userApiKey' => $user?->getKeyValue() ?? '',
+            'lastConnection' => ($user?->getLastConnection() ?? $updatedLastConnection)->format('Y-m-d H:i:s'),
             'userEmail' => $email,
         ]);
     }
@@ -73,40 +78,28 @@ class DashboardController extends AbstractController
             return new Response('Unauthorized', Response::HTTP_UNAUTHORIZED);
         }
 
-        // Use test database in test environment
-        $dbFile = $this->getParameter('kernel.environment') === 'test' ? 'test.db' : 'data.db';
-        $pdo = new \PDO('sqlite:' . $this->getParameter('kernel.project_dir') . '/var/' . $dbFile);
-
         // Hash the email to match the database storage
         $encryptionKey = $this->getParameter('app.encryption_key');
         $hashedEmail = hash('sha3-512', $email . $encryptionKey);
 
-        // Check if an API key already exists for this email
-        $stmt = $pdo->prepare('SELECT key_value FROM api_keys WHERE email = :email');
-        $stmt->execute(['email' => $hashedEmail]);
-        $existingKey = $stmt->fetchColumn();
+        $repo = $this->em->getRepository(ApiKey::class);
+        /** @var ApiKey|null $user */
+        $user = $repo->findOneBy(['email' => $hashedEmail]);
 
-        if ($existingKey) {
+        if (!$user) {
+            return new Response('User not found', Response::HTTP_NOT_FOUND);
+        }
+
+        if ($user->getKeyValue()) {
             return new Response('API key already exists', Response::HTTP_CONFLICT);
         }
 
         // Generate a new API key
         $apiKey = bin2hex(random_bytes(16));
+        $user->setKeyValue($apiKey)->setIsActive(true);
+        $this->em->flush();
 
-        // Store the new API key in the database
-        $stmt = $pdo->prepare('UPDATE api_keys SET key_value = :key_value, is_active = :is_active
-                WHERE email = :email');
-        $result = $stmt->execute([
-            'key_value' => $apiKey,
-            'email' => $hashedEmail,
-            'is_active' => 1,
-        ]);
-
-        if ($result && $stmt->rowCount() > 0) {
-            return new Response($apiKey, Response::HTTP_OK);
-        }
-
-        return new Response('Failed to generate API key', Response::HTTP_INTERNAL_SERVER_ERROR);
+        return new Response($apiKey, Response::HTTP_OK);
     }
 
     /**

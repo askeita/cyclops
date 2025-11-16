@@ -2,7 +2,8 @@
 
 namespace App\Controller;
 
-use PDO;
+use App\Entity\ApiKey;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,34 +21,32 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 class EmailController extends AbstractController
 {
     private MailerInterface $mailer;
+    private EntityManagerInterface $em;
 
     /**
      * EmailController constructor.
      *
      * @param MailerInterface $mailer
+     * @param EntityManagerInterface $em
      */
-    public function __construct(MailerInterface $mailer)
+    public function __construct(MailerInterface $mailer, EntityManagerInterface $em)
     {
         $this->mailer = $mailer;
+        $this->em = $em;
     }
 
     /**
      * Check if an email already exists in the database
      *
-     * @param PDO $pdo
      * @param string $hashedEmail
      * @return boolean
      */
     #[Route('check', name: 'check', methods: ['GET'])]
-    public function checkEmailAvailable(PDO $pdo, string $hashedEmail): bool
+    public function checkEmailAvailable(string $hashedEmail): bool
     {
-        $stmt = $pdo->prepare('SELECT COUNT(id) FROM api_keys WHERE email = :email');
-        $stmt->execute(['email' => $hashedEmail]);
-        if ($stmt->fetchColumn() > 0) {
-            return false;
-        }
-
-        return true;
+        $repo = $this->em->getRepository(ApiKey::class);
+        $exists = $repo->findOneBy(['email' => $hashedEmail]) !== null;
+        return !$exists;
     }
 
     /**
@@ -90,32 +89,21 @@ class EmailController extends AbstractController
             return new Response('Missing token', Response::HTTP_BAD_REQUEST);
         }
 
-        // Use test database in test environment
-        $dbFile = $this->getParameter('kernel.environment') === 'test' ? 'test.db' : 'data.db';
-        $pdo = new PDO('sqlite:' . $this->getParameter('kernel.project_dir') . '/var/' . $dbFile);
-        $stmt = $pdo->prepare('SELECT email FROM api_keys WHERE verification_token = :token');
-        $stmt->execute(['token' => $token]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        $repo = $this->em->getRepository(ApiKey::class);
+        /** @var ApiKey|null $apiKey */
+        $apiKey = $repo->findOneBy(['verificationToken' => $token]);
 
-        if (!$user) {
+        if (!$apiKey) {
             return new Response('Invalid or expired verification link', Response::HTTP_BAD_REQUEST);
         }
 
-        $stmt = $pdo->prepare('UPDATE api_keys SET email_verified = :email_verified,
-                        verification_token = :verification_token, is_active = :is_active
-                WHERE verification_token = :token');
-        $stmt->execute([
-            'email_verified' => 1,
-            'verification_token' => NULL,
-            'is_active' => 1,
-            'token' => $token,
-        ]);
+        $apiKey->setEmailVerified(true)
+            ->setVerificationToken(null)
+            ->setIsActive(true);
+        $this->em->flush();
 
-        if ($stmt->rowCount() > 0) {
-            return $this->redirectToRoute('app_login', ['emailVerified' => 'true']);
-        }
-
-        return new Response('Invalid or expired verification link', Response::HTTP_BAD_REQUEST);
+        return $this->redirectToRoute('app_login', ['emailVerified' => 'true']);
     }
+
 
 }

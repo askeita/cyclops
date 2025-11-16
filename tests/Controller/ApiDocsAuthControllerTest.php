@@ -3,10 +3,11 @@
 namespace App\Tests\Controller;
 
 use App\Entity\ApiKey;
-use App\Kernel;
 use App\Repository\ApiKeyRepository;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Cookie;
+use App\Tests\Traits\EnsureTestDatabaseTrait;
+use App\Kernel;
 
 
 /**
@@ -16,6 +17,16 @@ use Symfony\Component\HttpFoundation\Cookie;
  */
 class ApiDocsAuthControllerTest extends WebTestCase
 {
+    use EnsureTestDatabaseTrait;
+
+    /**
+     * Get the kernel class for the test environment
+     */
+    protected static function getKernelClass(): string
+    {
+        return Kernel::class;
+    }
+
     /**
      * Set up the test environment
      *
@@ -27,32 +38,12 @@ class ApiDocsAuthControllerTest extends WebTestCase
         static::ensureKernelShutdown();
     }
 
-    /**
-     * Define test env vars to ensure DATABASE_URL is available before kernel boot
-     *
-     * @return void
-     */
     public static function setUpBeforeClass(): void
     {
-        $testDbDir = sys_get_temp_dir() . '/cyclops_test_repo';
-        if (!is_dir($testDbDir)) {
-            @mkdir($testDbDir, 0755, true);
-        }
-        $dbPath = $testDbDir . '/test.db';
-
-        $env = [
-            'APP_ENV' => 'test',
-            'APP_SECRET' => 's$cretf0rt3st',
-            'DATABASE_URL' => 'sqlite:///' . $dbPath,
-            'MAILER_DSN' => 'null://null',
-        ];
-
-        foreach ($env as $k => $v) {
-            $_ENV[$k] = $v;
-            $_SERVER[$k] = $v;
-            putenv($k . '=' . $v);
-        }
+        self::ensureTestDatabaseEnv();
+        putenv('MAILER_DSN=null://null'); $_ENV['MAILER_DSN']='null://null'; $_SERVER['MAILER_DSN']='null://null';
     }
+
 
     /**
      * Test that requesting the cookie without the API key header returns 401
@@ -158,15 +149,5 @@ class ApiDocsAuthControllerTest extends WebTestCase
         $secret = self::getContainer()->getParameter('kernel.secret');
         $expectedSignature = hash_hmac('sha256', $keyValue, $secret);
         $this->assertSame($keyValue . '.' . $expectedSignature, $cookie->getValue());
-    }
-
-    /**
-     * Get the kernel class for the test environment.
-     *
-     * @return string
-     */
-    protected static function getKernelClass(): string
-    {
-        return Kernel::class;
     }
 }
