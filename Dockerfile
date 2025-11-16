@@ -2,8 +2,15 @@
 FROM composer:2 AS composer_deps
 WORKDIR /app
 COPY composer.json composer.lock* symfony.lock* ./
-RUN composer install --prefer-dist --no-progress --no-interaction
+# Copy bin/console before composer install to avoid cache:clear errors
+COPY bin/ ./bin/
+COPY config/ ./config/
+COPY src/ ./src/
+COPY public/ ./public/
+RUN composer install --prefer-dist --no-progress --no-interaction --no-scripts
 COPY . .
+# Now run post-install scripts with all files in place
+RUN composer run-script post-install-cmd || true
 
 # Build assets (node, yarn)
 FROM node:20-alpine AS assets
