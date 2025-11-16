@@ -2,7 +2,7 @@
 FROM composer:2 AS composer_deps
 WORKDIR /app
 COPY composer.json composer.lock* symfony.lock* ./
-RUN composer install --no-dev --prefer-dist --no-scripts --no-progress --no-interaction
+RUN composer install --prefer-dist --no-progress --no-interaction
 COPY . .
 
 # Build assets (node, yarn)
@@ -15,12 +15,9 @@ COPY assets ./assets
 COPY webpack.config.js ./
 RUN corepack enable && yarn install --frozen-lockfile && yarn build
 
-# Nginx + PHP-FPM runtime
-FROM php:8.2-fpm-alpine AS runtime
+# PHP-FPM runtime (8.4)
+FROM php:8.4-fpm-alpine AS runtime
 WORKDIR /var/www/html
-
-# Nginx + bash + curl
-RUN apk add --no-cache nginx bash curl
 
 # PHP extensions
 RUN docker-php-ext-install pdo pdo_mysql opcache && docker-php-ext-enable opcache || true
@@ -53,15 +50,6 @@ RUN set -eux; \
   # Ensure env variables are visible to PHP-FPM \
   sed -ri 's/^;?clear_env\s*=.*/clear_env = no/' /usr/local/etc/php-fpm.d/www.conf
 
-# Nginx configuration
-RUN mkdir -p /run/nginx /etc/nginx/http.d
-COPY nginx.conf /etc/nginx/http.d/default.conf
-
-# PHP-FPM and Nginx startup script
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
-
-ENV APP_ENV=prod APP_DEBUG=0 PORT=8080
-EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=3s --start-period=20s CMD wget --no-verbose --tries=1 --spider http://localhost:8080 || exit 1
-CMD ["/start.sh"]
+ENV APP_ENV=prod APP_DEBUG=0
+EXPOSE 9000
+CMD ["php-fpm"]
