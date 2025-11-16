@@ -152,7 +152,7 @@ curl -H "X-API-KEY: your_api_key_here" \
 
 Interactive API documentation is available through the integrated Swagger UI interface. Access the full documentation at `/api/docs` on your Cyclops instance.
 
-## 🔧 Development
+## 📦 Development
 
 ### **Requirements**
 - PHP 8.2+
@@ -177,9 +177,9 @@ This project is licensed under a proprietary license. The API is free for use, b
 
 We welcome contributions to improve the crisis database and API functionality. Please read our contributing guidelines before submitting pull requests.
 
-## 📞 Support
+## 🔧 Support
 
-For technical support, API questions, or data inquiries, please contact our support team or create an issue in the repository.
+For technical support, API questions, or data inquiries, please create an issue in the repository.
 
 ---
 
