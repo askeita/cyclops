@@ -117,10 +117,13 @@ jobs:
             APP_DEBUG=0
             TRUSTED_PROXIES=0.0.0.0/0
             TRUSTED_HOSTS=.*
-            DATABASE_URL=mysql://root:password@127.0.0.1:3306/cyclops?serverVersion=8.0&charset=utf8mb4
           secrets: |
-            DATABASE_URL=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_URL/versions/latest
+            DATABASE_URL=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_URL
+            DATABASE_USERNAME=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_USERNAME
+            DATABASE_PASSWORD=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_PASSWORD
 
       # If required, use the Cloud Run URL output in later steps
       - name: 'Show URL'
         run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
+mysql://<username>:<password>@/cyclops?unix_socket=/cloudsql/banded-object-476821-p9:europe-west1:cyclops-mysql&serverVersion=8:
+    0&charset=utf8mb4:
