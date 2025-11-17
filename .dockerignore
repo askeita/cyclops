@@ -4,6 +4,8 @@ node_modules
 vendor
 var
 tests
-.env*
+# Exclude development and local env files
+.env.dev
+.env.local
 docker
 *.log

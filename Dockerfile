@@ -9,9 +9,9 @@ COPY config/ ./config/
 COPY src/ ./src/
 COPY public/ ./public/
 
-# Explicitly copy env files early (non-secret defaults)
-COPY .env ./.env
-COPY .env.test* ./.
+# Copy only production and test env files (exclude .env.dev and .env.local)
+COPY .env .env.test ./
+
 RUN composer install --prefer-dist --no-progress --no-interaction --no-scripts
 COPY . .
 
