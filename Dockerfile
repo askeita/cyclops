@@ -2,19 +2,26 @@
 FROM composer:2 AS composer_deps
 WORKDIR /app
 COPY composer.json composer.lock* symfony.lock* ./
+
 # Copy bin/console before composer install to avoid cache:clear errors
 COPY bin/ ./bin/
 COPY config/ ./config/
 COPY src/ ./src/
 COPY public/ ./public/
+
+# Explicitly copy env files early (non-secret defaults)
+COPY .env ./.env
+COPY .env.test* ./.
 RUN composer install --prefer-dist --no-progress --no-interaction --no-scripts
 COPY . .
+
 # Now run post-install scripts with all files in place
 RUN composer run-script post-install-cmd || true
 
 # Build assets (node, yarn)
 FROM node:20-alpine AS assets
 WORKDIR /app
+
 # ux-vue dependencies (node_modules)
 COPY --from=composer_deps /app/vendor /app/vendor
 COPY package.json yarn.lock* ./
