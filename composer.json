@@ -49,10 +49,7 @@
     "autoload-dev": {
         "psr-4": {
             "App\\Tests\\": "tests/"
-        },
-        "files": [
-            "tests/prepare_env.php"
-        ]
+        }
     },
     "replace": {
         "symfony/polyfill-ctype": "*",
