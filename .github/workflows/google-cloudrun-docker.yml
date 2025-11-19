@@ -132,9 +132,15 @@ jobs:
             TRUSTED_PROXIES=0.0.0.0/0
             TRUSTED_HOSTS=.*
           secrets: |
-            DATABASE_URL=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_URL
-            DATABASE_USERNAME=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_USERNAME
-            DATABASE_PASSWORD=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_PASSWORD
+            DATABASE_URL=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_URL:latest
+            DATABASE_USERNAME=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_USERNAME:latest
+            DATABASE_PASSWORD=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_PASSWORD:latest
+            APP_SECRET=projects/${{ env.PROJECT_ID }}/secrets/APP_SECRET:latest
+            ENCRYPTION_KEY=projects/${{ env.PROJECT_ID }}/secrets/ENCRYPTION_KEY:latest
+            AWS_REGION=projects/${{ env.PROJECT_ID }}/secrets/AWS_REGION:latest
+            AWS_ACCESS_KEY_ID=projects/${{ env.PROJECT_ID }}/secrets/AWS_ACCESS_KEY_ID:latest
+            AWS_SECRET_ACCESS_KEY=projects/${{ env.PROJECT_ID }}/secrets/AWS_SECRET_ACCESS_KEY:latest
+            MAILER_DSN=projects/${{ env.PROJECT_ID }}/secrets/MAILER_DSN:latest
 
       # If required, use the Cloud Run URL output in later steps
       - name: 'Show URL'
