@@ -41,6 +41,7 @@ env:
   WORKLOAD_IDENTITY_PROVIDER: 'projects/297496186405/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
   SERVICE_ACCOUNT: 'github-actions-sa@banded-object-476821-p9.iam.gserviceaccount.com'
   CLOUDSQL_INSTANCE: 'banded-object-476821-p9:europe-west1:cyclops-mysql'
+  GCLOUD_VERBOSITY: 'debug'
 
 jobs:
   deploy:
@@ -53,6 +54,13 @@ jobs:
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
+
+      - name: 'Configurer verbosité gcloud'
+        run: |
+          set -euxo pipefail
+          gcloud config set core/verbosity ${GCLOUD_VERBOSITY}
+          gcloud config set core/log_http True
+          gcloud info
 
       # Configure Workload Identity Federation and generate an access token.
       #
@@ -69,23 +77,28 @@ jobs:
       # Check IAM permissions
       - name: 'Verify IAM Permissions'
         run: |-
+          set -euxo pipefail
           gcloud projects get-iam-policy ${{ env.PROJECT_ID }} \
             --flatten="bindings[].members" \
             --filter="bindings.members:${{ env.SERVICE_ACCOUNT }}" \
-            --format="table(bindings.role)"
+            --format="table(bindings.role)" \
+            --verbosity=${{ env.GCLOUD_VERBOSITY }}
 
      # Check existence of Artifact Registry repository
       - name: 'Verify Artifact Registry Repository'
         run: |-
+          set -euxo pipefail
           gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
             --location=${{ env.REGION }} \
-            --project=${{ env.PROJECT_ID }}
+            --project=${{ env.PROJECT_ID }} \
+            --verbosity=${{ env.GCLOUD_VERBOSITY }}
 
       # BEGIN - Docker auth and build
       # Authentication for pushing to Artifact Registry
       - name: 'Configure Docker for Artifact Registry'
         run: |-
-          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+          set -euxo pipefail
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet --verbosity=${{ env.GCLOUD_VERBOSITY }}
 
       - name: 'Docker Auth'
         uses: docker/login-action@v3
@@ -96,8 +109,9 @@ jobs:
 
       - name: 'Build and Push Container'
         run: |-
+          set -euxo pipefail
           DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}"
-          docker build --tag "${DOCKER_TAG}" .
+          docker build --progress=plain --tag "${DOCKER_TAG}" .
           docker push "${DOCKER_TAG}"
       # END - Docker auth and build
 
@@ -125,3 +139,11 @@ jobs:
       # If required, use the Cloud Run URL output in later steps
       - name: 'Show URL'
         run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
+
+      - name: 'Cloud Run recent logs (on failure)'
+        if: failure()
+        run: |
+          set -euxo pipefail
+          gcloud run services describe ${{ env.SERVICE }} --region ${{ env.REGION }} --format='yaml(status)' --verbosity=${GCLOUD_VERBOSITY}
+          gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=${{ env.SERVICE }}" \
+            --limit=100 --order=desc --verbosity=${GCLOUD_VERBOSITY} --format=json || true
