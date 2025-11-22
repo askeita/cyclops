@@ -5,7 +5,6 @@ vendor
 var
 tests
 # Exclude development and local env files
-.env
 .env.dev
 .env.local
 docker
