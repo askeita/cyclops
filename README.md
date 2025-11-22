@@ -1,10 +1,12 @@
-# 🌀 Cyclops - Economic & Financial Crises API
+# 🌀 [Cyclops](https://cyclops-api.online) - Economic & Financial Crises API
 
 **A free, comprehensive REST API providing detailed data on historical and contemporary economic and financial crises worldwide.**
 
+🌐 **Website**: [https://cyclops-api.online](https://cyclops-api.online)
+
 ## 📋 Overview
 
-Cyclops is a specialized API platform that aggregates and provides structured information about major economic and financial crises throughout history. Built with **Symfony 7.3** and **API Platform**, it offers researchers, economists, students, and developers easy access to crisis data for analysis, research, and educational purposes.
+[Cyclops](https://cyclops-api.online) is a specialized API platform that aggregates and provides structured information about major economic and financial crises throughout history. Built with **Symfony 7.3** and **API Platform**, it offers researchers, economists, students, and developers easy access to crisis data for analysis, research, and educational purposes.
 
 ## ✨ Key Features
 
@@ -44,13 +46,16 @@ Cyclops is a specialized API platform that aggregates and provides structured in
 - **Security**: Rate limiting, XSS protection, input validation
 
 ### **Database Architecture**
-Cyclops utilizes a **tri-database approach** for optimal performance, security, and scalability:
+[Cyclops](https://cyclops-api.online) utilizes a **tri-database approach** for optimal performance, security, and scalability:
 
-#### 🗄️ **SQLite Database** (`var/data.db`)
+#### ☁️ **Cloud SQL (MySQL)** 
 - **User Management**: Secure user authentication and API key storage
 - **Encrypted Storage**: Email addresses are hashed using SHA3-512 with encryption keys
 - **Password Security**: Argon2ID hashing with individual salts
 - **Session Management**: Temporary authentication tokens
+- **High Availability**: Automated backups and failover support
+- **Scalability**: Vertical and horizontal scaling capabilities
+- **Managed Service**: Fully managed by Google Cloud Platform
 
 #### 🗄️ **Doctrine ORM Database** 
 - **Entity Management**: ORM mappings and relationships
@@ -74,7 +79,7 @@ Cyclops utilizes a **tri-database approach** for optimal performance, security, 
 ## 🚀 Getting Started
 
 ### **1. Create Your Account**
-1. Visit the Cyclops web interface
+1. Visit the [Cyclops](https://cyclops-api.online) web interface
 2. Sign up with your email address
 3. Verify your email (check your inbox)
 4. Log into your dashboard
@@ -150,7 +155,7 @@ curl -H "X-API-KEY: your_api_key_here" \
 
 ## 📚 API Documentation
 
-Interactive API documentation is available through the integrated Swagger UI interface. Access the full documentation at `/api/docs` on your Cyclops instance.
+Interactive API documentation is available through the integrated Swagger UI interface. Access the full documentation at `/api/docs` on your [Cyclops](https://cyclops-api.online) instance.
 
 ## 📦 Development
 
@@ -183,4 +188,4 @@ For technical support, API questions, or data inquiries, please create an issue 
 
 ---
 
-**Cyclops - Making economic crisis data accessible to everyone, for free.** 🌀
+**[Cyclops](https://cyclops-api.online) - Making economic crisis data accessible to everyone, for free.** 🌀
