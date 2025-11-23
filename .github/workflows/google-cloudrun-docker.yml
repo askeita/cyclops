@@ -126,21 +126,12 @@ jobs:
           flags: >-
             --port=8080 --cpu=1 --memory=512Mi --min-instances=0 --max-instances=10
             --add-cloudsql-instances=${{ env.CLOUDSQL_INSTANCE }}
+            --verbosity=${{ env.GCLOUD_VERBOSITY }}
           env_vars: |
-            APP_ENV=prod
-            APP_DEBUG=0
             TRUSTED_PROXIES=0.0.0.0/0
             TRUSTED_HOSTS=.*
           secrets: |
-            DATABASE_URL=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_URL:latest
-            DATABASE_USERNAME=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_USERNAME:latest
-            DATABASE_PASSWORD=projects/${{ env.PROJECT_ID }}/secrets/DATABASE_PASSWORD:latest
             APP_SECRET=projects/${{ env.PROJECT_ID }}/secrets/APP_SECRET:latest
-            ENCRYPTION_KEY=projects/${{ env.PROJECT_ID }}/secrets/ENCRYPTION_KEY:latest
-            AWS_REGION=projects/${{ env.PROJECT_ID }}/secrets/AWS_REGION:latest
-            AWS_ACCESS_KEY_ID=projects/${{ env.PROJECT_ID }}/secrets/AWS_ACCESS_KEY_ID:latest
-            AWS_SECRET_ACCESS_KEY=projects/${{ env.PROJECT_ID }}/secrets/AWS_SECRET_ACCESS_KEY:latest
-            MAILER_DSN=projects/${{ env.PROJECT_ID }}/secrets/MAILER_DSN:latest
 
       # If required, use the Cloud Run URL output in later steps
       - name: 'Show URL'
