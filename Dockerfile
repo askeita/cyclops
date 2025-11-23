@@ -88,6 +88,7 @@ server {
     index index.php;
 
     # Increase timeouts for Cloud Run
+    fastcgi_connect_timeout 5s;
     fastcgi_read_timeout 60s;
     fastcgi_send_timeout 60s;
 
@@ -151,12 +152,12 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 autorestart=true
 priority=10
-startsecs=0
+startsecs=5
 stopwaitsecs=10
 stopsignal=QUIT
 
 [program:nginx]
-command=/bin/sh -c 'sleep 3 && nginx -g "daemon off;"'
+command=/bin/bash -c 'for i in $(seq 1 40); do (echo > /dev/tcp/127.0.0.1/9000) >/dev/null 2>&1 && break; echo "waiting for php-fpm..."; sleep 0.25; done; nginx -g "daemon off;"'
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
