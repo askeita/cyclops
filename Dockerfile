@@ -34,7 +34,7 @@ FROM php:8.4-fpm-alpine AS runtime
 WORKDIR /var/www/html
 
 # Install Nginx, supervisor and other dependencies
-RUN apk add --no-cache nginx supervisor fcgi bash procps net-tools curl
+RUN apk add --no-cache nginx supervisor fcgi bash procps net-tools curl coreutils
 
 # PHP extensions
 RUN docker-php-ext-install pdo pdo_mysql opcache && docker-php-ext-enable opcache || true
@@ -68,10 +68,10 @@ RUN set -eux; \
   # Ensure env variables are visible to PHP-FPM \
   sed -ri 's/^;?clear_env\s*=.*/clear_env = no/' /usr/local/etc/php-fpm.d/www.conf; \
   # Configure PHP-FPM to listen on UNIX socket (more reliable than TCP) \
-  sed -ri 's|^listen\s*=.*|listen = /var/run/php-fpm.sock|' /usr/local/etc/php-fpm.d/www.conf; \
+  sed -ri 's|^listen\s*=.*|listen = /run/php-fpm/php-fpm.sock|' /usr/local/etc/php-fpm.d/www.conf; \
   sed -ri 's/^;?listen.owner\s*=.*/listen.owner = www-data/' /usr/local/etc/php-fpm.d/www.conf; \
   sed -ri 's/^;?listen.group\s*=.*/listen.group = www-data/' /usr/local/etc/php-fpm.d/www.conf; \
-  sed -ri 's/^;?listen.mode\s*=.*/listen.mode = 0660/' /usr/local/etc/php-fpm.d/www.conf; \
+  sed -ri 's/^;?listen.mode\s*=.*/listen.mode = 0666/' /usr/local/etc/php-fpm.d/www.conf; \
   # Increase PHP-FPM process management settings \
   sed -ri 's/^;?pm\s*=.*/pm = dynamic/' /usr/local/etc/php-fpm.d/www.conf; \
   sed -ri 's/^;?pm.max_children\s*=.*/pm.max_children = 20/' /usr/local/etc/php-fpm.d/www.conf; \
@@ -111,7 +111,7 @@ server {
 
     # Health check endpoints
     location ~ ^/(php-fpm-status|php-fpm-ping)$ {
-        fastcgi_pass unix:/var/run/php-fpm.sock;
+        fastcgi_pass unix:/run/php-fpm/php-fpm.sock;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         allow 127.0.0.1;
@@ -124,7 +124,7 @@ server {
     }
 
     location ~ ^/index\.php(/|$) {
-        fastcgi_pass unix:/var/run/php-fpm.sock;
+        fastcgi_pass unix:/run/php-fpm/php-fpm.sock;
         fastcgi_split_path_info ^(.+\.php)(/.*)$;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
@@ -157,6 +157,7 @@ logfile=/dev/stdout
 logfile_maxbytes=0
 loglevel=info
 pidfile=/var/run/supervisord.pid
+childlogdir=/tmp
 
 [unix_http_server]
 file=/var/run/supervisor.sock
@@ -174,22 +175,23 @@ stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 autorestart=true
+autostart=true
 priority=10
-startsecs=5
-stopwaitsecs=10
+startsecs=10
+stopwaitsecs=15
 stopsignal=QUIT
 killasgroup=true
 stopasgroup=true
 
 [program:nginx]
-command=/bin/bash -c 'echo "Waiting for PHP-FPM socket to be ready..."; for i in $(seq 1 80); do if [ -S /var/run/php-fpm.sock ]; then echo "PHP-FPM socket found! Testing connection..."; if cgi-fcgi -bind -connect /var/run/php-fpm.sock 2>/dev/null || [ -w /var/run/php-fpm.sock ]; then echo "PHP-FPM is ready!"; nginx -g "daemon off;"; exit 0; fi; fi; echo "Attempt $i/80: PHP-FPM not ready yet..."; sleep 0.25; done; echo "ERROR: PHP-FPM failed to start after 20 seconds"; exit 1'
+command=/bin/bash -c 'echo "Waiting for PHP-FPM socket to be ready..."; for i in $(seq 1 80); do if [ -S /run/php-fpm/php-fpm.sock ]; then if [ -w /run/php-fpm/php-fpm.sock ] || [ -r /run/php-fpm/php-fpm.sock ]; then echo "PHP-FPM socket is ready!"; sleep 1; nginx -g "daemon off;"; exit 0; fi; fi; echo "Attempt $i/80: waiting for PHP-FPM..."; sleep 0.5; done; echo "ERROR: PHP-FPM socket not ready after 40 seconds"; ls -la /run/php-fpm/ 2>&1; exit 1'
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 autorestart=true
 priority=20
-startsecs=0
+startsecs=10
 stopwaitsecs=10
 stopsignal=QUIT
 killasgroup=true
@@ -233,8 +235,8 @@ echo ""
 
 # Verify PHP-FPM listen configuration
 echo "Verifying PHP-FPM listen configuration..."
-if grep -q "listen = /var/run/php-fpm.sock" /usr/local/etc/php-fpm.d/www.conf; then
-    echo "✓ PHP-FPM is configured to listen on /var/run/php-fpm.sock"
+if grep -q "listen = /run/php-fpm/php-fpm.sock" /usr/local/etc/php-fpm.d/www.conf; then
+    echo "✓ PHP-FPM is configured to listen on /run/php-fpm/php-fpm.sock"
 else
     echo "✗ PHP-FPM listen configuration is incorrect!"
     grep "^listen" /usr/local/etc/php-fpm.d/www.conf
@@ -242,23 +244,13 @@ else
 fi
 echo ""
 
-# Test PHP-FPM startup manually first
-echo "Pre-starting PHP-FPM to verify it works..."
-php-fpm -t && echo "✓ PHP-FPM configuration test passed"
-timeout 5s php-fpm -F &
-PHP_FPM_PID=$!
-sleep 2
-
-# Check if PHP-FPM started successfully
-if kill -0 $PHP_FPM_PID 2>/dev/null; then
-    echo "✓ PHP-FPM started successfully (PID: $PHP_FPM_PID)"
-    kill $PHP_FPM_PID 2>/dev/null || true
-    wait $PHP_FPM_PID 2>/dev/null || true
-    sleep 1
-else
-    echo "✗ PHP-FPM failed to start!"
-    exit 1
-fi
+# Prepare socket directory
+echo "Preparing /run/php-fpm directory..."
+mkdir -p /run/php-fpm
+chmod 755 /run/php-fpm
+chown www-data:www-data /run/php-fpm
+rm -f /run/php-fpm/php-fpm.sock || true
+ls -la /run/php-fpm/ 2>&1 || true
 echo ""
 
 # Ensure directories exist with correct permissions
