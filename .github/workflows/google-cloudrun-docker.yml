@@ -93,7 +93,6 @@ jobs:
             --project=${{ env.PROJECT_ID }} \
             --verbosity=${{ env.GCLOUD_VERBOSITY }}
 
-      # BEGIN - Docker auth and build
       # Authentication for pushing to Artifact Registry
       - name: 'Configure Docker for Artifact Registry'
         run: |-
@@ -113,7 +112,31 @@ jobs:
           DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}"
           docker build --progress=plain --tag "${DOCKER_TAG}" .
           docker push "${DOCKER_TAG}"
-      # END - Docker auth and build
+
+      - name: 'Ensure Cloud Run service exists'
+        run: |-
+          set -euxo pipefail
+          SERVICE_NAME="${{ env.SERVICE }}"
+          REGION="${{ env.REGION }}"
+          PROJECT_ID="${{ env.PROJECT_ID }}"
+          REPO_IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}"
+          EXISTING=$(gcloud run services list --region "$REGION" --project "$PROJECT_ID" --format="value(metadata.name)" --filter="metadata.name=$SERVICE_NAME" || true)
+          if [ -z "$EXISTING" ]; then
+            echo "Service $SERVICE_NAME absent. Création initiale...";
+            gcloud run deploy "$SERVICE_NAME" \
+              --image "$REPO_IMAGE" \
+              --region "$REGION" \
+              --platform managed \
+              --port=8080 \
+              --cpu=1 --memory=512Mi --min-instances=0 --max-instances=10 \
+              --add-cloudsql-instances="${{ env.CLOUDSQL_INSTANCE }}" \
+              --set-env-vars TRUSTED_PROXIES=0.0.0.0/0,TRUSTED_HOSTS=.* \
+              --set-secrets APP_SECRET=projects/${{ env.PROJECT_ID }}/secrets/APP_SECRET:latest \
+              --verbosity="${{ env.GCLOUD_VERBOSITY }}" \
+              --allow-unauthenticated;
+          else
+            echo "Service $SERVICE_NAME déjà existant.";
+          fi
 
       - id: deploy
         name: 'Deploy to Cloud Run'
