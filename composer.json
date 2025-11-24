@@ -13,6 +13,7 @@
         "api-platform/graphql": "*",
         "aws/aws-sdk-php": "*",
         "doctrine/doctrine-bundle": "*",
+        "doctrine/doctrine-migrations-bundle": "^3.3",
         "doctrine/orm": "*",
         "nelmio/cors-bundle": "^2.6",
         "symfony/asset": "7.3.*",

@@ -12,7 +12,7 @@ COPY public/ ./public/
 # Copy only production and test env files (exclude .env.dev and .env.local)
 COPY .env .env.test ./
 
-RUN composer install --prefer-dist --no-progress --no-interaction --no-scripts
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-progress
 COPY . .
 
 # Now run post-install scripts with all files in place
