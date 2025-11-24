@@ -131,9 +131,7 @@ jobs:
               --cpu=1 --memory=512Mi --min-instances=0 --max-instances=10 \
               --add-cloudsql-instances="${{ env.CLOUDSQL_INSTANCE }}" \
               --set-env-vars TRUSTED_PROXIES=0.0.0.0/0,TRUSTED_HOSTS=.* \
-              --set-secrets APP_SECRET=projects/${{ env.PROJECT_ID }}/secrets/APP_SECRET:latest \
-              --verbosity="${{ env.GCLOUD_VERBOSITY }}" \
-              --allow-unauthenticated;
+              --verbosity="${{ env.GCLOUD_VERBOSITY }}";
           else
             echo "Service $SERVICE_NAME déjà existant.";
           fi
@@ -154,7 +152,6 @@ jobs:
             TRUSTED_PROXIES=0.0.0.0/0
             TRUSTED_HOSTS=.*
           secrets: |
-            APP_SECRET=projects/${{ env.PROJECT_ID }}/secrets/APP_SECRET:latest
 
       # If required, use the Cloud Run URL output in later steps
       - name: 'Show URL'
