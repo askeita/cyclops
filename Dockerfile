@@ -16,7 +16,8 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-di
 COPY . .
 
 # Now run post-install scripts with all files in place
-RUN composer run-script post-install-cmd || true
+# Skip cache:clear if it fails (will be done later with proper env)
+RUN composer run-script post-install-cmd || echo "Post-install scripts failed, continuing..."
 
 # Build assets (node, yarn)
 FROM node:20-alpine AS assets
@@ -51,8 +52,9 @@ RUN mkdir -p var/cache var/log \
     && chown -R www-data:www-data var \
     && chmod -R 755 /var/www/html
 
-# PHP configuration
+# PHP configuration - use TCP for PHP-FPM (simpler and more reliable)
 RUN set -eux; \
+  mkdir -p /run/nginx /var/log/nginx; \
   { \
     echo "memory_limit=256M"; \
     echo "zlib.output_compression=On"; \
@@ -67,11 +69,11 @@ RUN set -eux; \
   } > /usr/local/etc/php/conf.d/opcache.ini; \
   # Ensure env variables are visible to PHP-FPM \
   sed -ri 's/^;?clear_env\s*=.*/clear_env = no/' /usr/local/etc/php-fpm.d/www.conf; \
-  # Configure PHP-FPM to listen on UNIX socket (more reliable than TCP) \
-  sed -ri 's|^listen\s*=.*|listen = /run/php-fpm/php-fpm.sock|' /usr/local/etc/php-fpm.d/www.conf; \
-  sed -ri 's/^;?listen.owner\s*=.*/listen.owner = www-data/' /usr/local/etc/php-fpm.d/www.conf; \
-  sed -ri 's/^;?listen.group\s*=.*/listen.group = www-data/' /usr/local/etc/php-fpm.d/www.conf; \
-  sed -ri 's/^;?listen.mode\s*=.*/listen.mode = 0666/' /usr/local/etc/php-fpm.d/www.conf; \
+  # Configure PHP-FPM to listen on TCP (more reliable) \
+  sed -ri 's|^listen\s*=.*|listen = 127.0.0.1:9000|' /usr/local/etc/php-fpm.d/www.conf; \
+  # Configure user and group for PHP-FPM pool \
+  sed -ri 's/^;?user\s*=.*/user = www-data/' /usr/local/etc/php-fpm.d/www.conf; \
+  sed -ri 's/^;?group\s*=.*/group = www-data/' /usr/local/etc/php-fpm.d/www.conf; \
   # Increase PHP-FPM process management settings \
   sed -ri 's/^;?pm\s*=.*/pm = dynamic/' /usr/local/etc/php-fpm.d/www.conf; \
   sed -ri 's/^;?pm.max_children\s*=.*/pm.max_children = 20/' /usr/local/etc/php-fpm.d/www.conf; \
@@ -92,8 +94,7 @@ RUN set -eux; \
   sed -ri 's/^;?request_terminate_timeout\s*=.*/request_terminate_timeout = 60s/' /usr/local/etc/php-fpm.d/www.conf
 
 # Nginx configuration for Cloud Run
-RUN mkdir -p /run/nginx /var/log/nginx && \
-    cat > /etc/nginx/http.d/default.conf <<'EOF'
+RUN cat > /etc/nginx/http.d/default.conf <<'EOF'
 server {
     listen 8080;
     server_name _;
@@ -111,7 +112,7 @@ server {
 
     # Health check endpoints
     location ~ ^/(php-fpm-status|php-fpm-ping)$ {
-        fastcgi_pass unix:/run/php-fpm/php-fpm.sock;
+        fastcgi_pass 127.0.0.1:9000;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         allow 127.0.0.1;
@@ -124,7 +125,7 @@ server {
     }
 
     location ~ ^/index\.php(/|$) {
-        fastcgi_pass unix:/run/php-fpm/php-fpm.sock;
+        fastcgi_pass 127.0.0.1:9000;
         fastcgi_split_path_info ^(.+\.php)(/.*)$;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
@@ -169,7 +170,7 @@ serverurl=unix:///var/run/supervisor.sock
 supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface
 
 [program:php-fpm]
-command=php-fpm -F -R
+command=php-fpm -F
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
@@ -184,14 +185,15 @@ killasgroup=true
 stopasgroup=true
 
 [program:nginx]
-command=/bin/bash -c 'echo "Waiting for PHP-FPM socket to be ready..."; for i in $(seq 1 80); do if [ -S /run/php-fpm/php-fpm.sock ]; then if [ -w /run/php-fpm/php-fpm.sock ] || [ -r /run/php-fpm/php-fpm.sock ]; then echo "PHP-FPM socket is ready!"; sleep 1; nginx -g "daemon off;"; exit 0; fi; fi; echo "Attempt $i/80: waiting for PHP-FPM..."; sleep 0.5; done; echo "ERROR: PHP-FPM socket not ready after 40 seconds"; ls -la /run/php-fpm/ 2>&1; exit 1'
+command=/bin/bash -c 'echo "Waiting for PHP-FPM on 127.0.0.1:9000..."; for i in $(seq 1 40); do if nc -z 127.0.0.1 9000 2>/dev/null; then echo "✓ PHP-FPM is ready on port 9000!"; exec nginx -g "daemon off;"; fi; echo "Attempt $i/40: PHP-FPM not ready yet..."; sleep 0.25; done; echo "✗ ERROR: PHP-FPM not responding after 10 seconds"; ps aux | grep php-fpm; netstat -tlnp; exit 1'
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 autorestart=true
+autostart=true
 priority=20
-startsecs=10
+startsecs=0
 stopwaitsecs=10
 stopsignal=QUIT
 killasgroup=true
@@ -235,22 +237,13 @@ echo ""
 
 # Verify PHP-FPM listen configuration
 echo "Verifying PHP-FPM listen configuration..."
-if grep -q "listen = /run/php-fpm/php-fpm.sock" /usr/local/etc/php-fpm.d/www.conf; then
-    echo "✓ PHP-FPM is configured to listen on /run/php-fpm/php-fpm.sock"
+if grep -q "listen = 127.0.0.1:9000" /usr/local/etc/php-fpm.d/www.conf; then
+    echo "✓ PHP-FPM is configured to listen on 127.0.0.1:9000"
 else
     echo "✗ PHP-FPM listen configuration is incorrect!"
     grep "^listen" /usr/local/etc/php-fpm.d/www.conf
     exit 1
 fi
-echo ""
-
-# Prepare socket directory
-echo "Preparing /run/php-fpm directory..."
-mkdir -p /run/php-fpm
-chmod 755 /run/php-fpm
-chown www-data:www-data /run/php-fpm
-rm -f /run/php-fpm/php-fpm.sock || true
-ls -la /run/php-fpm/ 2>&1 || true
 echo ""
 
 # Ensure directories exist with correct permissions
@@ -270,9 +263,22 @@ if [ "$APP_ENV" = "prod" ]; then
     echo ""
 fi
 
+# Show PHP-FPM pool configuration
+echo "PHP-FPM pool configuration:"
+grep -E "^(listen|pm|user|group)" /usr/local/etc/php-fpm.d/www.conf | head -10
+echo ""
+
+# Show listening configuration specifically
+echo "PHP-FPM will listen on:"
+grep "^listen = " /usr/local/etc/php-fpm.d/www.conf
+echo ""
+
 echo "=========================================="
 echo "Starting services via Supervisord..."
 echo "=========================================="
+echo "PHP-FPM will start first (priority 10), then Nginx (priority 20)"
+echo ""
+
 exec /usr/bin/supervisord -c /etc/supervisord.conf
 EOF
 
