@@ -130,7 +130,7 @@ jobs:
               --port=8080 \
               --cpu=1 --memory=512Mi --min-instances=0 --max-instances=10 \
               --add-cloudsql-instances="${{ env.CLOUDSQL_INSTANCE }}" \
-              --set-env-vars TRUSTED_PROXIES=0.0.0.0/0,TRUSTED_HOSTS=.* \
+              --set-env-vars "TRUSTED_PROXIES=0.0.0.0/0,TRUSTED_HOSTS=^(cyclops-api\.online|.*\.run\.app|localhost|127\.0\.0\.1)$" \
               --verbosity="${{ env.GCLOUD_VERBOSITY }}";
           else
             echo "Service $SERVICE_NAME déjà existant.";
@@ -142,7 +142,6 @@ jobs:
         with:
           service: '${{ env.SERVICE }}'
           region: '${{ env.REGION }}'
-          # NOTE: If using a pre-built image, update the image name below:
           image: '${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}'
           flags: >-
             --port=8080 --cpu=1 --memory=512Mi --min-instances=0 --max-instances=10
@@ -150,7 +149,7 @@ jobs:
             --verbosity=${{ env.GCLOUD_VERBOSITY }}
           env_vars: |
             TRUSTED_PROXIES=0.0.0.0/0
-            TRUSTED_HOSTS=.*
+            TRUSTED_HOSTS=^(cyclops-api\.online|.*\.run\.app|localhost|127\.0\.0\.1)$
           secrets: |
 
       # If required, use the Cloud Run URL output in later steps

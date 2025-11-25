@@ -35,7 +35,7 @@ FROM php:8.4-fpm-alpine AS runtime
 WORKDIR /var/www/html
 
 # Install Nginx, supervisor and other dependencies
-RUN apk add --no-cache nginx supervisor fcgi bash procps net-tools curl coreutils
+RUN apk add --no-cache nginx supervisor fcgi bash procps net-tools curl coreutils netcat-openbsd
 
 # PHP extensions
 RUN docker-php-ext-install pdo pdo_mysql opcache && docker-php-ext-enable opcache || true
@@ -178,14 +178,14 @@ stderr_logfile_maxbytes=0
 autorestart=true
 autostart=true
 priority=10
-startsecs=10
-stopwaitsecs=15
+startsecs=15
+stopwaitsecs=20
 stopsignal=QUIT
 killasgroup=true
 stopasgroup=true
 
 [program:nginx]
-command=/bin/bash -c 'echo "Waiting for PHP-FPM on 127.0.0.1:9000..."; for i in $(seq 1 40); do if nc -z 127.0.0.1 9000 2>/dev/null; then echo "✓ PHP-FPM is ready on port 9000!"; exec nginx -g "daemon off;"; fi; echo "Attempt $i/40: PHP-FPM not ready yet..."; sleep 0.25; done; echo "✗ ERROR: PHP-FPM not responding after 10 seconds"; ps aux | grep php-fpm; netstat -tlnp; exit 1'
+command=/bin/bash -c 'echo "Waiting for PHP-FPM on 127.0.0.1:9000..."; for i in $(seq 1 80); do if nc -z 127.0.0.1 9000 2>/dev/null; then echo "✓ PHP-FPM ready (attempt $i)"; exec nginx -g "daemon off;"; fi; echo "Attempt $i/80: php-fpm not ready"; sleep 0.25; done; echo "✗ ERROR: PHP-FPM socket not ready after 20s"; ps aux | grep php-fpm; netstat -tlnp || ss -tlnp; exit 1'
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
@@ -205,13 +205,17 @@ RUN cat > /entrypoint.sh <<'EOF'
 #!/bin/bash
 set -e
 
+# Export environment variables (defaults are set via ENV in Dockerfile)
+export APP_ENV APP_DEBUG TRUSTED_HOSTS TRUSTED_PROXIES
+
 echo "=========================================="
 echo "Starting Cyclops application..."
 echo "=========================================="
 
-# Display environment info
 echo "Environment: $APP_ENV"
 echo "Debug mode: $APP_DEBUG"
+echo "Trusted hosts: $TRUSTED_HOSTS"
+echo "Trusted proxies: $TRUSTED_PROXIES"
 echo "PHP version: $(php -v | head -n 1)"
 echo ""
 
@@ -241,7 +245,7 @@ if grep -q "listen = 127.0.0.1:9000" /usr/local/etc/php-fpm.d/www.conf; then
     echo "✓ PHP-FPM is configured to listen on 127.0.0.1:9000"
 else
     echo "✗ PHP-FPM listen configuration is incorrect!"
-    grep "^listen" /usr/local/etc/php-fpm.d/www.conf
+    grep "^listen" /usr/local/etc/php-fpm.d/www.conf || true
     exit 1
 fi
 echo ""
@@ -254,36 +258,29 @@ chmod -R 775 var/cache var/log || true
 echo "✓ Directories and permissions are set"
 echo ""
 
-# Warm up Symfony cache if needed
+# Warm up Symfony cache if prod
 if [ "$APP_ENV" = "prod" ]; then
     echo "Warming up Symfony cache for production..."
     php bin/console cache:warmup --env=prod --no-debug || {
-        echo "⚠ Cache warmup failed, but continuing..."
+        echo "⚠ Cache warmup failed, continuing..."
     }
     echo ""
 fi
 
-# Show PHP-FPM pool configuration
-echo "PHP-FPM pool configuration:"
-grep -E "^(listen|pm|user|group)" /usr/local/etc/php-fpm.d/www.conf | head -10
-echo ""
-
-# Show listening configuration specifically
-echo "PHP-FPM will listen on:"
-grep "^listen = " /usr/local/etc/php-fpm.d/www.conf
-echo ""
-
 echo "=========================================="
 echo "Starting services via Supervisord..."
 echo "=========================================="
-echo "PHP-FPM will start first (priority 10), then Nginx (priority 20)"
+# Display basic pool config
+echo "PHP-FPM pool configuration summary:"
+grep -E "^(listen|pm|user|group)" /usr/local/etc/php-fpm.d/www.conf | head -20 || true
 echo ""
 
+echo "Launching supervisord (php-fpm then nginx)..."
 exec /usr/bin/supervisord -c /etc/supervisord.conf
 EOF
 
 RUN chmod +x /entrypoint.sh
 
-ENV APP_ENV=prod APP_DEBUG=0
+ENV APP_ENV=prod APP_DEBUG=0 TRUSTED_HOSTS="^(cyclops-api\.online|.*\.run\.app|localhost|127\.0\.0\.1)$" TRUSTED_PROXIES=0.0.0.0/0
 EXPOSE 8080
 ENTRYPOINT ["/entrypoint.sh"]
