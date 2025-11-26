@@ -46,6 +46,7 @@ RUN rm -rf var/cache/* var/log/*
 # Permissions and cache/log directories
 RUN mkdir -p var/cache var/log \
     && chown -R www-data:www-data var \
+    && chmod -R 775 var \
     && chmod -R 755 /var/www/html
 
 # PHP configuration - use TCP for PHP-FPM (simpler and more reliable)
@@ -249,8 +250,10 @@ echo ""
 # Ensure directories exist with correct permissions
 echo "Checking directories and permissions..."
 mkdir -p var/cache var/log /run/nginx /var/run
-chown -R www-data:www-data var/cache var/log || true
-chmod -R 775 var/cache var/log || true
+chown -R www-data:www-data var || true
+chmod -R 775 var || true
+# Ensure var subdirectories are writable
+chmod -R 777 var/cache var/log || true
 echo "✓ Directories and permissions are set"
 echo ""
 
