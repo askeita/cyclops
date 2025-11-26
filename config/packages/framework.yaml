@@ -1,5 +1,7 @@
 framework:
     secret: '%env(APP_SECRET)%'
+    trusted_hosts: '%env(TRUSTED_HOSTS)%'
+    trusted_proxies: '%env(TRUSTED_PROXIES)%'
     router:
         utf8: true
     session:

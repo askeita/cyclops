@@ -279,7 +279,7 @@ RUN chmod +x /entrypoint.sh
 
 ENV APP_ENV=prod \
     APP_DEBUG=0 \
-    TRUSTED_HOSTS=".*\.run\.app,localhost,127\.0\.0\.1" \
+    TRUSTED_HOSTS="^(cyclops-api\.online|.*\.run\.app|localhost|127\.0\.0\.1)$" \
     TRUSTED_PROXIES="10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16"
 EXPOSE 8080
 ENTRYPOINT ["/entrypoint.sh"]
