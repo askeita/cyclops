@@ -4,14 +4,6 @@ framework:
         utf8: true
     session:
         enabled: true
-    # Trust upstream proxy and allowed hostnames from environment
-    trusted_hosts: '%env(csv:TRUSTED_HOSTS)%'
-    trusted_proxies: '%env(csv:TRUSTED_PROXIES)%'
-    trusted_headers:
-        - x-forwarded-for
-        - x-forwarded-proto
-        - x-forwarded-port
-        - x-forwarded-host
 
 when@dev:
     framework:

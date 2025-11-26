@@ -40,11 +40,13 @@ services:
       APP_SECRET: change_me_please
       DATABASE_URL: mysql://user:password@mysql:3306/cyclops_dev?serverVersion=8.0&charset=utf8mb4
       DATABASE_TEST_URL: mysql://user:password@mysql:3306/cyclops_test?serverVersion=8.0&charset=utf8mb4
+      TRUSTED_HOSTS: "^localhost$,^127\.0\.0\.1$,^cyclops-api\.online$"
+      TRUSTED_PROXIES: 0.0.0.0/0
     volumes:
       - .:/var/www/html
       - cache-dev:/var/www/html/var/cache/dev
     user: "0:0"
-    command: ["/bin/sh", "-c", "mkdir -p var/cache var/log && chmod -R 777 var/cache var/log && php-fpm -F"]
+    command: ["/bin/sh", "-c", "mkdir -p var/cache var/log && chmod -R 777 var/cache var/log && /entrypoint.sh"]
     networks:
       - cyclops_network
 

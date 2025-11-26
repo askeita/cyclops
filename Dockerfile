@@ -15,10 +15,6 @@ COPY .env .env.test ./
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-progress
 COPY . .
 
-# Now run post-install scripts with all files in place
-# Skip cache:clear if it fails (will be done later with proper env)
-RUN composer run-script post-install-cmd || echo "Post-install scripts failed, continuing..."
-
 # Build assets (node, yarn)
 FROM node:20-alpine AS assets
 WORKDIR /app
@@ -281,6 +277,9 @@ EOF
 
 RUN chmod +x /entrypoint.sh
 
-ENV APP_ENV=prod APP_DEBUG=0 TRUSTED_HOSTS="^(cyclops-api\.online|.*\.run\.app|localhost|127\.0\.0\.1)$" TRUSTED_PROXIES=0.0.0.0/0
+ENV APP_ENV=prod \
+    APP_DEBUG=0 \
+    TRUSTED_HOSTS=".*\.run\.app,localhost,127\.0\.0\.1" \
+    TRUSTED_PROXIES="10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16"
 EXPOSE 8080
 ENTRYPOINT ["/entrypoint.sh"]
