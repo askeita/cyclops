@@ -40,14 +40,16 @@ RUN docker-php-ext-install pdo pdo_mysql opcache && docker-php-ext-enable opcach
 COPY --from=composer_deps /app /var/www/html
 COPY --from=assets /app/public/build /var/www/html/public/build
 
-# Symfony cache clear
-RUN rm -rf var/cache/* var/log/*
-
-# Permissions and cache/log directories
-RUN mkdir -p var/cache var/log \
-    && chown -R www-data:www-data var \
-    && chmod -R 775 var \
-    && chmod -R 755 /var/www/html
+# Symfony cache clear and permissions - Critical for Cloud Run
+RUN set -eux; \
+    rm -rf var/cache/* var/log/* || true; \
+    mkdir -p var/cache/prod var/cache/dev var/log; \
+    chmod -R 777 var/cache var/log; \
+    chown -R www-data:www-data var || true; \
+    chmod -R 755 /var/www/html || true; \
+    APP_ENV=prod php bin/console cache:warmup --no-debug || true; \
+    chmod -R 777 var/cache var/log; \
+    touch var/cache/test.txt && rm var/cache/test.txt && echo "✓ Cache directory is writable" || echo "⚠ Warning: cache not writable";
 
 # PHP configuration - use TCP for PHP-FPM (simpler and more reliable)
 RUN set -eux; \
@@ -57,6 +59,10 @@ RUN set -eux; \
     echo "zlib.output_compression=On"; \
     echo "expose_php=Off"; \
   } > /usr/local/etc/php/conf.d/symfony.ini; \
+  { \
+    echo "; Allow any user to write cache/log files"; \
+    echo "sys_temp_dir=/tmp"; \
+  } >> /usr/local/etc/php/conf.d/symfony.ini; \
   { \
     echo "opcache.enable=1"; \
     echo "opcache.validate_timestamps=0"; \
@@ -247,23 +253,60 @@ else
 fi
 echo ""
 
-# Ensure directories exist with correct permissions
+# Ensure directories exist with correct permissions (CRITICAL for Cloud Run)
 echo "Checking directories and permissions..."
-mkdir -p var/cache var/log /run/nginx /var/run
-chown -R www-data:www-data var || true
-chmod -R 775 var || true
-# Ensure var subdirectories are writable
-chmod -R 777 var/cache var/log || true
-echo "✓ Directories and permissions are set"
+mkdir -p var/cache/prod var/cache/dev var/log /run/nginx /var/run 2>/dev/null || true
+
+# CRITICAL: Force 777 permissions recursively on cache and log
+# Cloud Run may run as arbitrary UID, so we need world-writable dirs
+echo "Setting permissions on var/cache and var/log..."
+chmod -R 777 var/cache var/log 2>/dev/null || true
+
+# Try to set ownership, but don't fail if we can't (Cloud Run restrictions)
+chown -R www-data:www-data var 2>/dev/null || true
+
+# Verify write permissions by testing
+echo "Verifying write permissions..."
+if touch var/cache/.test 2>/dev/null && rm var/cache/.test 2>/dev/null; then
+    echo "✓ var/cache is writable"
+else
+    echo "✗ ERROR: var/cache is NOT writable!"
+    ls -la var/ 2>/dev/null || true
+    ls -la var/cache/ 2>/dev/null || true
+    # Try to fix permissions one more time
+    chmod -R 777 var/cache 2>/dev/null || true
+fi
+
+if touch var/log/.test 2>/dev/null && rm var/log/.test 2>/dev/null; then
+    echo "✓ var/log is writable"
+else
+    echo "✗ ERROR: var/log is NOT writable!"
+    ls -la var/log/ 2>/dev/null || true
+    chmod -R 777 var/log 2>/dev/null || true
+fi
 echo ""
 
-# Warm up Symfony cache if prod
-if [ "$APP_ENV" = "prod" ]; then
-    echo "Warming up Symfony cache for production..."
-    php bin/console cache:warmup --env=prod --no-debug || {
-        echo "⚠ Cache warmup failed, continuing..."
-    }
+# Check if cache is already warmed up (from build time)
+if [ "$APP_ENV" = "prod" ] && [ ! -f var/cache/prod/.warmup-done ]; then
+    echo "Production cache not found or incomplete, warming up..."
+
+    # Ensure prod cache directory exists with full permissions
+    mkdir -p var/cache/prod 2>/dev/null || true
+    chmod -R 777 var/cache/prod 2>/dev/null || true
+
+    # Warm up cache
+    if php bin/console cache:warmup --env=prod --no-debug 2>&1; then
+        echo "✓ Cache warmed up successfully"
+        touch var/cache/prod/.warmup-done 2>/dev/null || true
+    else
+        echo "⚠ Cache warmup failed, but continuing..."
+    fi
+
+    # CRITICAL: Re-apply full permissions after warmup
+    chmod -R 777 var/cache var/log 2>/dev/null || true
     echo ""
+else
+    echo "✓ Production cache already warmed up"
 fi
 
 echo "=========================================="
