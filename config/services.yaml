@@ -69,3 +69,7 @@ services:
     App\Controller\ApiDocsAuthController:
         autowire: true
         autoconfigure: true
+
+    App\Controller\EmailController:
+        arguments:
+            $emailFrom: '%env(EMAIL_FROM)%'

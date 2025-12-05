@@ -22,17 +22,24 @@ class EmailController extends AbstractController
 {
     private MailerInterface $mailer;
     private EntityManagerInterface $em;
+    private string $emailFrom;
+
 
     /**
      * EmailController constructor.
      *
      * @param MailerInterface $mailer
      * @param EntityManagerInterface $em
+     * @param string $emailFrom
      */
-    public function __construct(MailerInterface $mailer, EntityManagerInterface $em)
-    {
+    public function __construct(
+        MailerInterface $mailer,
+        EntityManagerInterface $em,
+        string $emailFrom
+    ) {
         $this->mailer = $mailer;
         $this->em = $em;
+        $this->emailFrom = $emailFrom;
     }
 
     /**
@@ -66,7 +73,7 @@ class EmailController extends AbstractController
         );
 
         $emailMessage = (new Email())
-            ->from('askeita.dev@gmail.com')
+            ->from($this->emailFrom)
             ->to($email)
             ->subject('Please verify your email address')
             ->html($this->renderView('emails/verification.html.twig', [
