@@ -44,9 +44,8 @@ services:
       TRUSTED_PROXIES: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16"
     volumes:
       - .:/var/www/html
-      - cache-dev:/var/www/html/var/cache/dev
     user: "0:0"
-    command: ["/bin/sh", "-c", "mkdir -p var/cache var/log && chmod -R 777 var/cache var/log && /entrypoint.sh"]
+    command: ["/bin/sh", "-c", "mkdir -p var/cache/dev var/cache/prod var/log && chmod -R 777 var/cache var/log && chown -R www-data:www-data var && /entrypoint.sh"]
     networks:
       - cyclops_network
 
@@ -66,9 +65,3 @@ services:
 volumes:
   mysql_data:
     driver: local
-  cache-dev:
-    driver: local
-    driver_opts:
-      type: none
-      device: ./var/cache/dev
-      o: bind
