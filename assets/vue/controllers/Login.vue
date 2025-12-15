@@ -284,7 +284,7 @@ label {
 /* Wrap to position password toggle without magic numbers */
 .password-group { position: relative; }
 
-input[type="email"], input[type="password"] {
+input[type="email"], input[type="password"], input[type="text"] {
     width: 100%;
     padding: 0.75rem;
     border: 1px solid #ddd;
@@ -304,7 +304,7 @@ input[type="email"]:focus, input[type="password"]:focus {
 .password-toggle-btn {
     position: absolute;
     right: 0.5rem;
-    top: 2.5rem;
+    top: 3.25rem;
     transform: translateY(-50%);
     background: none;
     border: none;
