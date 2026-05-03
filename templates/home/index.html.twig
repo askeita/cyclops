@@ -1,7 +1,16 @@
 {% extends 'base.html.twig' %}
 
 {% block title %}CYCLOPS - Economic and Financial Crises API{% endblock %}
+{% block meta_description %}Explore economic and financial crises datasets through the Cyclops API.{% endblock %}
+{% block canonical_url %}https://cyclops-api.online/{% endblock %}
 
 {% block body %}
-    <div class="container" {{ vue_component('Home', {}) }}></div>
+    <main class="container">
+        <h1>CYCLOPS - Economic and Financial Crises API</h1>
+        <p>Explore economic and financial crises datasets through a secure and reliable API.</p>
+        <noscript>
+            <p>JavaScript is optional. Core information remains accessible for users and crawlers.</p>
+        </noscript>
+        <div {{ vue_component('Home', {}) }}></div>
+    </main>
 {% endblock %}
