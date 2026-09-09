@@ -34,7 +34,7 @@
     "@vue/babel-preset-jsx": "^1.4.0",
     "@vue/compiler-sfc": "^3.5.21",
     "babel-loader": "^10.0.0",
-    "css-loader": "^7.1.2",
+    "css-loader": "^7.1.5",
     "less": "^4.0.0",
     "less-loader": "^12.2.0",
     "mini-css-extract-plugin": "^2.9.4",
