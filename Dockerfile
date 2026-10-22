@@ -27,7 +27,7 @@ COPY webpack.config.js ./
 RUN corepack enable && yarn install --frozen-lockfile && yarn build
 
 # PHP-FPM runtime with Nginx (8.4)
-FROM php:8.4-fpm-alpine AS runtime
+FROM php:8.4.27-fpm-alpine AS runtime
 WORKDIR /var/www/html
 
 # Install Nginx, supervisor and other dependencies
