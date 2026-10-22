@@ -11,6 +11,12 @@ when@dev:
     framework:
         ide: null
 
+when@prod:
+    framework:
+        # Explicitly disallow Symfony's own noindex listener from ever firing
+        # in prod; safety net in case APP_DEBUG is misconfigured.
+        disallow_search_engine_index: false
+
 when@test:
     framework:
         test: true
