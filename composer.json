@@ -23,15 +23,15 @@
         "symfony/expression-language": "7.3.*",
         "symfony/flex": "^2",
         "symfony/framework-bundle": "7.3.*",
-        "symfony/mailer": "7.3.*",
+        "symfony/mailer": "7.4.*",
         "symfony/monolog-bundle": "^3.10",
-        "symfony/runtime": "7.3.*",
+        "symfony/runtime": "7.4.*",
         "symfony/security-bundle": "7.3.*",
         "symfony/stimulus-bundle": "^2.30",
         "symfony/twig-bundle": "7.3.*",
         "symfony/ux-vue": "^2.30",
         "symfony/webpack-encore-bundle": "^2.3",
-        "symfony/yaml": "7.3.*"
+        "symfony/yaml": "7.4.*"
     },
     "config": {
         "allow-plugins": {
@@ -87,9 +87,9 @@
         "phpunit/phpunit": "^9.6",
         "symfony/browser-kit": "7.3.*",
         "symfony/css-selector": "7.3.*",
-        "symfony/dom-crawler": "7.3.*",
+        "symfony/dom-crawler": "7.4.*",
         "symfony/maker-bundle": "^1.64",
         "symfony/phpunit-bridge": "^7.3",
-        "symfony/web-profiler-bundle": "7.3.*"
+        "symfony/web-profiler-bundle": "7.4.*"
     }
 }
